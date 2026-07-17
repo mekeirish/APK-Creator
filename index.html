@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>APK Creator · Glass Console</title>
+
+    <!-- PWA / Installabilité -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#4b6cb7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="./icon.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
     <!-- QR Code library -->
@@ -846,7 +854,7 @@ jobs:
     }
 
     // ================================================================
-    //  QR CODE GENERATION (CORRIGÉ)
+    //  QR CODE GENERATION
     // ================================================================
     function generateQR(url) {
         if (!qrCanvas) return;
@@ -1229,7 +1237,7 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / MISE À JOUR INTELLIGENTE DU WORKFLOW (avec normalisation)
+    //  CRÉATION / MISE À JOUR INTELLIGENTE DU WORKFLOW
     // ================================================================
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
@@ -1253,7 +1261,6 @@ jobs:
                 existingEncoded = data.content;
                 fileExists = true;
                 logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ')', 'warn');
-                // Normaliser le base64 de GitHub (retire les retours à la ligne)
                 var normalizedExisting = existingEncoded.replace(/\n/g, '');
                 if (normalizedExisting === newEncoded) {
                     logMsg('✅ Workflow déjà à jour, aucune modification nécessaire', 'success');
@@ -1682,6 +1689,17 @@ jobs:
     logMsg('📌 Token sauvegardé', 'info');
     logMsg('🪟 Glass · Dark', 'info');
     logMsg('💡 Mode Code Direct : Ctrl+Enter pour lancer', 'info');
+</script>
+
+<!-- Enregistrement du Service Worker -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('./sw.js')
+        .then(function(reg) { console.log('✅ Service Worker enregistré !'); })
+        .catch(function(err) { console.error('❌ Erreur SW :', err); });
+    });
+  }
 </script>
 
 </body>
