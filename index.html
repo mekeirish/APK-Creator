@@ -6,6 +6,8 @@
     <title>APK Creator · Glass Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
+    <!-- QR Code library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Inter',sans-serif; background:#0b0d15; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:12px; }
@@ -19,6 +21,9 @@
         .glass-btn:disabled { opacity:0.35; cursor:not-allowed; transform:none; }
         .glass-btn-success { background:rgba(80,220,160,0.12); border-color:rgba(80,220,160,0.2); color:#a0f0d0; }
         .glass-btn-success:hover:not(:disabled) { background:rgba(80,220,160,0.22); border-color:rgba(80,220,160,0.35); color:#d0fff0; }
+        .glass-btn-danger { background:rgba(255,100,100,0.12); border:1px solid rgba(255,100,100,0.2); color:#ff9090; }
+        .glass-btn-danger:hover:not(:disabled) { background:rgba(255,100,100,0.22); border-color:rgba(255,100,100,0.35); color:#ffb0b0; }
+        .glass-btn-sm { padding:0.4rem 1rem; font-size:0.75rem; width:auto; }
         .badge-glass { display:inline-block; padding:0.15rem 0.8rem; border-radius:100px; font-size:0.6rem; font-weight:600; letter-spacing:0.2px; text-transform:uppercase; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.5); white-space:nowrap; }
         .badge-glass.ok { background:rgba(80,220,160,0.12); border-color:rgba(80,220,160,0.2); color:#80e0c0; }
         .badge-glass.err { background:rgba(255,100,100,0.12); border-color:rgba(255,100,100,0.2); color:#ff9090; }
@@ -70,6 +75,143 @@
         .code-editor::placeholder { color:rgba(255,255,255,0.2); }
         .code-editor.visible { display:block; }
         .sandbox-badge { display:inline-block; font-size:0.6rem; background:rgba(255,200,80,0.12); border:1px solid rgba(255,200,80,0.15); border-radius:100px; padding:0.1rem 0.8rem; color:#f0d060; }
+        .token-warning { font-size:0.55rem; color:rgba(255,200,80,0.5); margin-top:0.3rem; display:flex; align-items:center; gap:0.3rem; }
+        .btn-row { display:flex; gap:0.75rem; }
+        .btn-row .glass-btn { flex:1; }
+        .btn-row .glass-btn-danger { flex:0 0 auto; width:auto; padding:0.8rem 1.2rem; }
+        #qrContainer { display:none; margin-top:0.75rem; padding:1rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:1.2rem; text-align:center; transition:opacity 0.3s ease; }
+        #qrContainer canvas { display:block; margin:0 auto; border-radius:8px; }
+        #qrContainer p { color:rgba(255,255,255,0.4); font-size:0.7rem; margin-top:0.4rem; }
+
+        /* Icon uploader */
+        .icon-upload-area {
+            display:flex;
+            align-items:center;
+            gap:1rem;
+            flex-wrap:wrap;
+            padding:0.6rem 0.8rem;
+            background:rgba(255,255,255,0.02);
+            border:1px solid rgba(255,255,255,0.04);
+            border-radius:1.2rem;
+        }
+        .icon-preview {
+            width:64px;
+            height:64px;
+            border-radius:12px;
+            background:rgba(255,255,255,0.04);
+            border:1px solid rgba(255,255,255,0.06);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:1.8rem;
+            color:rgba(255,255,255,0.2);
+            flex-shrink:0;
+            overflow:hidden;
+        }
+        .icon-preview img {
+            width:100%;
+            height:100%;
+            object-fit:cover;
+        }
+        .icon-actions {
+            display:flex;
+            gap:0.5rem;
+            flex-wrap:wrap;
+            align-items:center;
+        }
+        .icon-warning {
+            font-size:0.55rem;
+            color:rgba(255,200,80,0.4);
+            margin-top:0.3rem;
+            display:none;
+        }
+        .icon-warning.visible {
+            display:block;
+        }
+        .icon-size-badge {
+            font-size:0.5rem;
+            color:rgba(255,255,255,0.2);
+            background:rgba(255,255,255,0.04);
+            padding:0.1rem 0.4rem;
+            border-radius:100px;
+        }
+
+        /* History */
+        .history-glass {
+            margin-top:1.5rem;
+            background:rgba(0,0,0,0.45);
+            backdrop-filter:blur(8px);
+            border:1px solid rgba(255,255,255,0.04);
+            border-radius:1.4rem;
+            overflow:hidden;
+        }
+        .history-glass .history-header:hover {
+            background:rgba(255,255,255,0.04);
+        }
+        .history-glass .history-header span {
+            pointer-events:none;
+        }
+        #historyBody::-webkit-scrollbar {
+            width:3px;
+        }
+        #historyBody::-webkit-scrollbar-track {
+            background:transparent;
+        }
+        #historyBody::-webkit-scrollbar-thumb {
+            background:rgba(255,255,255,0.08);
+            border-radius:10px;
+        }
+        .history-entry {
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            padding:0.3rem 0.6rem;
+            background:rgba(255,255,255,0.02);
+            border-radius:0.8rem;
+            border:1px solid rgba(255,255,255,0.03);
+            font-size:0.7rem;
+        }
+        .history-entry .info {
+            display:flex;
+            gap:0.5rem;
+            align-items:center;
+            flex-wrap:wrap;
+        }
+        .history-entry .repo {
+            color:rgba(255,255,255,0.7);
+            font-weight:500;
+        }
+        .history-entry .time {
+            color:rgba(255,255,255,0.25);
+            font-size:0.55rem;
+        }
+        .history-entry .mode-badge {
+            font-size:0.5rem;
+            padding:0.05rem 0.5rem;
+            border-radius:100px;
+            background:rgba(255,255,255,0.04);
+            border:1px solid rgba(255,255,255,0.04);
+            color:rgba(255,255,255,0.3);
+        }
+        .history-entry .dl-btn {
+            background:rgba(80,220,160,0.08);
+            border:1px solid rgba(80,220,160,0.1);
+            border-radius:100px;
+            padding:0.1rem 0.6rem;
+            font-size:0.5rem;
+            font-weight:600;
+            color:#a0f0d0;
+            cursor:pointer;
+            transition:background 0.15s, color 0.15s;
+            font-family:inherit;
+            text-decoration:none;
+            white-space:nowrap;
+        }
+        .history-entry .dl-btn:hover {
+            background:rgba(80,220,160,0.18);
+            color:#d0fff0;
+        }
+
         @media (max-width:480px) {
             body { padding:8px 6px 12px; align-items:flex-start; }
             .glass-panel { padding:1rem 0.8rem 1.8rem; border-radius:1.6rem; margin-top:10px; }
@@ -81,6 +223,9 @@
             .field-wrap { margin-bottom:0.7rem; }
             .field-wrap label { font-size:0.5rem; }
             .glass-btn { font-size:0.8rem; padding:0.6rem 1rem; border-radius:1.2rem; }
+            .glass-btn-sm { font-size:0.65rem; padding:0.3rem 0.8rem; }
+            .btn-row { gap:0.5rem; flex-wrap:wrap; }
+            .btn-row .glass-btn-danger { flex:1; }
             .terminal-glass { margin-top:1rem; border-radius:1.2rem; }
             .terminal-header { padding:0.3rem 0.7rem; }
             .terminal-header span { font-size:0.5rem; }
@@ -92,12 +237,22 @@
             .dropdown-item { font-size:0.7rem; padding:0.3rem 0.8rem; }
             .code-editor { min-height:140px; font-size:0.7rem; padding:0.5rem 0.7rem; }
             .mode-toggle button { font-size:0.6rem; padding:0.3rem 0.8rem; }
+            .token-warning { font-size:0.5rem; }
+            #qrContainer canvas { width:130px; height:130px; }
+            .icon-upload-area { gap:0.6rem; padding:0.4rem 0.6rem; }
+            .icon-preview { width:48px; height:48px; font-size:1.4rem; }
+            .history-entry .info { gap:0.3rem; }
+            .history-entry .repo { font-size:0.65rem; }
+            .history-entry .time { font-size:0.5rem; }
+            .history-entry .dl-btn { font-size:0.45rem; padding:0.05rem 0.4rem; }
         }
         @media (max-width:380px) {
             .header-top h1 { font-size:0.85rem; }
             .repo-badge { max-width:80px; font-size:0.5rem; }
             .badge-glass { font-size:0.45rem; padding:0.05rem 0.4rem; }
             .glass-btn { font-size:0.7rem; padding:0.5rem 0.8rem; }
+            #qrContainer canvas { width:110px; height:110px; }
+            .icon-preview { width:40px; height:40px; font-size:1.2rem; }
         }
     </style>
 </head>
@@ -117,34 +272,64 @@
         </div>
     </div>
 
+    <!-- Toggle Mode -->
     <div class="mode-toggle" id="modeToggle">
         <button class="active" data-mode="repo" onclick="setMode('repo')">📦 Projet</button>
         <button data-mode="direct" onclick="setMode('direct')">✏️ Code direct</button>
     </div>
 
+    <!-- Token -->
     <div class="field-wrap">
         <label>🔑 Clé API GitHub (PAT)</label>
         <input type="password" id="ghToken" class="glass-input" placeholder="ghp_..." autocomplete="off" />
+        <div class="token-warning">⚠️ Stocké en local sur cet appareil uniquement — ne pas utiliser sur un appareil partagé.</div>
     </div>
 
+    <!-- Mode Projet -->
     <div class="field-wrap" id="repoField">
         <label>📂 Projet cible</label>
         <input type="text" id="repoInput" class="glass-input" placeholder="Entrez un token pour charger les projets..." disabled autocomplete="off" />
         <div id="repoDropdown" class="dropdown-glass"></div>
     </div>
 
+    <!-- Mode Code Direct -->
     <div class="field-wrap" id="directField" style="display:none;">
         <label>📄 Code HTML <span class="sandbox-badge">📦 testapk</span></label>
         <textarea id="codeInput" class="code-editor" placeholder="Collez ici votre code HTML monolithique..." spellcheck="false"></textarea>
     </div>
 
-    <div class="flex flex-col gap-2 mt-1">
+    <!-- Upload d'icône -->
+    <div class="field-wrap">
+        <label>🖼️ Icône de l'application</label>
+        <div class="icon-upload-area">
+            <div class="icon-preview" id="iconPreview">🖼️</div>
+            <div class="icon-actions">
+                <input type="file" id="iconInput" accept="image/*" style="display:none;" />
+                <button class="glass-btn glass-btn-sm" onclick="document.getElementById('iconInput').click()">🖼️ Choisir une icône</button>
+                <button class="glass-btn glass-btn-sm glass-btn-danger" onclick="clearIcon()" style="display:none;" id="clearIconBtn">✕ Supprimer</button>
+                <span class="icon-size-badge" id="iconSizeBadge"></span>
+            </div>
+        </div>
+        <div class="icon-warning" id="iconWarning">⚠️ Cette action remplacera l'icône actuelle de la PWA (utilisée aussi pour son installabilité)</div>
+    </div>
+
+    <!-- Boutons -->
+    <div class="btn-row mt-1">
         <button id="buildBtn" class="glass-btn" onclick="triggerBuild()" disabled>
             🚀 Lancer la compilation
         </button>
-        <button id="downloadBtn" class="glass-btn glass-btn-success" onclick="downloadAPK()" style="display:none;">
-            ⬇️ Télécharger APK
+        <button id="cancelBtn" class="glass-btn glass-btn-danger" onclick="cancelBuild()" style="display:none;">
+            🛑 Annuler
         </button>
+    </div>
+    <button id="downloadBtn" class="glass-btn glass-btn-success" onclick="downloadAPK()" style="display:none; margin-top:0.5rem;">
+        ⬇️ Télécharger APK
+    </button>
+
+    <!-- Conteneur QR code -->
+    <div id="qrContainer" style="display:none; margin-top:0.75rem; padding:1rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:1.2rem; text-align:center;">
+        <canvas id="qrCanvas" width="150" height="150" style="border-radius:8px;"></canvas>
+        <p style="color:rgba(255,255,255,0.4); font-size:0.7rem; margin-top:0.4rem;">Scannez avec votre téléphone pour installer</p>
     </div>
 
     <div class="terminal-glass">
@@ -163,6 +348,19 @@
         </div>
     </div>
 
+    <!-- Section Historique -->
+    <div class="history-glass" style="margin-top:1.5rem;">
+        <div class="history-header" onclick="toggleHistory()" style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; background:rgba(0,0,0,0.3); border-bottom:1px solid rgba(255,255,255,0.04); border-radius:1.4rem 1.4rem 0 0; cursor:pointer; user-select:none;">
+            <span style="font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; color:rgba(255,255,255,0.25);">📜 Historique des builds</span>
+            <span id="historyToggleIcon" style="font-size:0.6rem; color:rgba(255,255,255,0.25);">▶</span>
+        </div>
+        <div id="historyBody" style="display:none; padding:0.6rem 0.8rem; background:rgba(0,0,0,0.45); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.04); border-top:none; border-radius:0 0 1.4rem 1.4rem; max-height:200px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.05) transparent;">
+            <div id="historyList" style="display:flex; flex-direction:column; gap:0.4rem;"></div>
+            <div id="historyEmpty" style="color:rgba(255,255,255,0.2); font-size:0.7rem; text-align:center; padding:0.5rem 0;">Aucun historique pour le moment</div>
+            <button id="clearHistoryBtn" onclick="clearHistory()" style="display:none; margin-top:0.4rem; background:rgba(255,100,100,0.08); border:1px solid rgba(255,100,100,0.1); border-radius:100px; padding:0.2rem 0.8rem; font-size:0.5rem; font-weight:600; color:rgba(255,100,100,0.5); cursor:pointer; transition:background 0.15s, color 0.15s; font-family:inherit; text-transform:uppercase; letter-spacing:0.3px;">🗑️ Vider l'historique</button>
+        </div>
+    </div>
+
     <div class="signature">LAICHE BRAHIM PARIS 2026</div>
 </div>
 
@@ -175,6 +373,7 @@
     const BRIDGE_URL = 'https://raw.githubusercontent.com/mekeirish/APK-Creator/main/bridge.js';
     const SANDBOX_OWNER = 'mekeirish';
     const SANDBOX_REPO = 'testapk';
+    let SANDBOX_DEFAULT_BRANCH = 'main';
 
     let reposMap = new Map();
     let currentOwner = '';
@@ -184,6 +383,10 @@
     let directDownloadUrl = '#';
     let buildInProgress = false;
     let currentMode = 'repo';
+    let dispatchTimestamp = 0;
+    let currentRunId = null;
+    let newIconData = null;
+    let existingIconData = null;
 
     // ================================================================
     //  DOM REFS
@@ -192,6 +395,7 @@
     const repoInput = document.getElementById('repoInput');
     const repoDropdown = document.getElementById('repoDropdown');
     const buildBtn = document.getElementById('buildBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const terminalOutput = document.getElementById('terminalOutput');
     const statusBadge = document.getElementById('statusBadge');
@@ -200,6 +404,13 @@
     const codeInput = document.getElementById('codeInput');
     const repoField = document.getElementById('repoField');
     const directField = document.getElementById('directField');
+    const qrContainer = document.getElementById('qrContainer');
+    const qrCanvas = document.getElementById('qrCanvas');
+    const iconInput = document.getElementById('iconInput');
+    const iconPreview = document.getElementById('iconPreview');
+    const iconSizeBadge = document.getElementById('iconSizeBadge');
+    const iconWarning = document.getElementById('iconWarning');
+    const clearIconBtn = document.getElementById('clearIconBtn');
 
     // ================================================================
     //  MODE TOGGLE
@@ -223,21 +434,233 @@
             currentRepo = '';
             setRepoBadgeText('');
             buildBtn.disabled = true;
+            existingIconData = null;
+            if (!newIconData) {
+                iconPreview.innerHTML = '🖼️';
+                iconSizeBadge.textContent = '';
+            }
         } else {
             repoField.style.display = 'none';
             directField.style.display = 'block';
             codeInput.style.display = 'block';
             currentOwner = SANDBOX_OWNER;
             currentRepo = SANDBOX_REPO;
-            currentBranch = 'main';
-            setRepoBadgeText('🧪 testapk (sandbox)');
             var token = ghTokenInput.value.trim();
+            if (token.length > 20) {
+                fetchSandboxDefaultBranch(token);
+            }
+            setRepoBadgeText('🧪 testapk (sandbox)');
             buildBtn.disabled = !(token.length > 20);
+            if (!newIconData) {
+                iconPreview.innerHTML = '🖼️';
+                iconSizeBadge.textContent = '';
+            }
+        }
+        cancelBtn.style.display = 'none';
+        qrContainer.style.display = 'none';
+        if (newIconData) {
+            displayIcon(newIconData.dataURL, newIconData.width, newIconData.height);
+        }
+    }
+
+    async function fetchSandboxDefaultBranch(token) {
+        try {
+            var res = await fetch('https://api.github.com/repos/' + SANDBOX_OWNER + '/' + SANDBOX_REPO, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (res.ok) {
+                var data = await res.json();
+                SANDBOX_DEFAULT_BRANCH = data.default_branch || 'main';
+                currentBranch = SANDBOX_DEFAULT_BRANCH;
+                logMsg('🔀 Branche par défaut du sandbox : ' + currentBranch, 'info');
+            } else {
+                SANDBOX_DEFAULT_BRANCH = 'main';
+                currentBranch = 'main';
+            }
+        } catch(e) {
+            SANDBOX_DEFAULT_BRANCH = 'main';
+            currentBranch = 'main';
         }
     }
 
     // ================================================================
-    //  YAML — INDENTATION CORRIGÉE (heredoc indenté à 10 espaces)
+    //  ICON HANDLING
+    // ================================================================
+    function displayIcon(dataURL, width, height) {
+        iconPreview.innerHTML = '<img src="' + dataURL + '" alt="Icon" />';
+        if (width && height) {
+            iconSizeBadge.textContent = width + '×' + height + ' PNG';
+        } else {
+            iconSizeBadge.textContent = 'PNG';
+        }
+    }
+
+    function clearIcon() {
+        newIconData = null;
+        iconInput.value = '';
+        if (existingIconData && existingIconData.dataURL) {
+            displayIcon(existingIconData.dataURL);
+            iconSizeBadge.textContent = 'existant';
+        } else {
+            iconPreview.innerHTML = '🖼️';
+            iconSizeBadge.textContent = '';
+        }
+        iconWarning.classList.remove('visible');
+        clearIconBtn.style.display = 'none';
+        logMsg('🖼️ Icône supprimée, retour à l\'icône existante (si disponible)', 'info');
+    }
+
+    function convertImageToSquarePNG(file) {
+        return new Promise(function(resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var img = new Image();
+                img.onload = function() {
+                    var size = 1024;
+                    var canvas = document.createElement('canvas');
+                    canvas.width = size;
+                    canvas.height = size;
+                    var ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, size, size);
+                    var srcAspect = img.width / img.height;
+                    var dstAspect = 1;
+                    var drawWidth, drawHeight, x, y;
+                    if (srcAspect > dstAspect) {
+                        drawHeight = size;
+                        drawWidth = size * srcAspect;
+                        x = (size - drawWidth) / 2;
+                        y = 0;
+                    } else {
+                        drawWidth = size;
+                        drawHeight = size / srcAspect;
+                        x = 0;
+                        y = (size - drawHeight) / 2;
+                    }
+                    ctx.drawImage(img, x, y, drawWidth, drawHeight);
+                    var dataURL = canvas.toDataURL('image/png');
+                    resolve({
+                        dataURL: dataURL,
+                        width: size,
+                        height: size
+                    });
+                };
+                img.onerror = function() { reject(new Error('Impossible de charger l\'image')); };
+                img.src = e.target.result;
+            };
+            reader.onerror = function() { reject(new Error('Erreur de lecture')); };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    iconInput.addEventListener('change', function(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        logMsg('🖼️ Conversion de l\'icône en PNG carré...', 'info');
+        convertImageToSquarePNG(file).then(function(result) {
+            newIconData = result;
+            displayIcon(result.dataURL, result.width, result.height);
+            iconWarning.classList.add('visible');
+            clearIconBtn.style.display = 'inline-block';
+            logMsg('🖼️ Image convertie en PNG ' + result.width + '×' + result.height, 'success');
+        }).catch(function(err) {
+            logMsg('❌ Erreur conversion icône : ' + err.message, 'error');
+            iconInput.value = '';
+        });
+    });
+
+    async function fetchExistingIcon(token, owner, repo) {
+        try {
+            var res = await fetch('https://api.github.com/repos/' + owner + '/' + repo + '/contents/icon.png', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (res.ok) {
+                var data = await res.json();
+                var content = data.content;
+                var binary = atob(content);
+                var bytes = new Uint8Array(binary.length);
+                for (var i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                var blob = new Blob([bytes], { type: 'image/png' });
+                var dataURL = URL.createObjectURL(blob);
+                existingIconData = {
+                    dataURL: dataURL,
+                    sha: data.sha
+                };
+                if (!newIconData) {
+                    displayIcon(dataURL);
+                    iconSizeBadge.textContent = 'existant';
+                }
+                logMsg('🖼️ Icône existante récupérée depuis le repo', 'info');
+                return true;
+            } else if (res.status === 404) {
+                existingIconData = null;
+                if (!newIconData) {
+                    iconPreview.innerHTML = '🖼️';
+                    iconSizeBadge.textContent = '';
+                }
+                return false;
+            } else {
+                throw new Error('Erreur ' + res.status);
+            }
+        } catch(e) {
+            logMsg('⚠️ Impossible de récupérer l\'icône existante : ' + e.message, 'warn');
+            return false;
+        }
+    }
+
+    async function pushIconToRepo(token, owner, repo, iconData) {
+        if (!iconData || !iconData.dataURL) return false;
+        logMsg('📤 Envoi de l\'icône vers ' + owner + '/' + repo + '...', 'info');
+        try {
+            var base64 = iconData.dataURL.split(',')[1];
+            if (!base64) throw new Error('Format dataURL invalide');
+
+            var sha = null;
+            var getRes = await fetch('https://api.github.com/repos/' + owner + '/' + repo + '/contents/icon.png', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (getRes.ok) {
+                var data = await getRes.json();
+                sha = data.sha;
+                logMsg('🔁 Fichier icon.png existant, mise à jour', 'warn');
+            } else if (getRes.status !== 404) {
+                throw new Error('Erreur ' + getRes.status);
+            }
+
+            var body = {
+                message: 'feat: mise à jour de l\'icône depuis APK Creator',
+                content: base64,
+                branch: currentBranch
+            };
+            if (sha) body.sha = sha;
+
+            var putRes = await fetch('https://api.github.com/repos/' + owner + '/' + repo + '/contents/icon.png', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (!putRes.ok) {
+                var errData = await putRes.json();
+                throw new Error(errData.message || 'Erreur ' + putRes.status);
+            }
+
+            var result = await putRes.json();
+            logMsg('🖼️ icon.png mis à jour (' + iconData.width + '×' + iconData.height + ', PNG)', 'success');
+            return true;
+        } catch (err) {
+            logMsg('❌ Échec de l\'envoi de l\'icône : ' + err.message, 'error');
+            return false;
+        }
+    }
+
+    // ================================================================
+    //  YAML
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -410,6 +833,12 @@ jobs:
         else if (type === 'err') statusDot.classList.add('fail');
         else if (type === 'running') statusDot.classList.add('running');
         else statusDot.classList.add('idle');
+
+        if (type === 'running') {
+            cancelBtn.style.display = 'inline-block';
+        } else {
+            cancelBtn.style.display = 'none';
+        }
     }
 
     function setRepoBadgeText(name) {
@@ -417,16 +846,176 @@ jobs:
     }
 
     // ================================================================
+    //  QR CODE GENERATION (CORRIGÉ)
+    // ================================================================
+    function generateQR(url) {
+        if (!qrCanvas) return;
+        try {
+            if (typeof qrcode === 'undefined') {
+                logMsg('⚠️ Bibliothèque qrcode non chargée', 'warn');
+                qrContainer.style.display = 'none';
+                return;
+            }
+            var qr = qrcode(0, 'M');
+            qr.addData(url);
+            qr.make();
+            var ctx = qrCanvas.getContext('2d');
+            var size = 150;
+            var cellSize = Math.floor(size / qr.getModuleCount());
+            qrCanvas.width = size;
+            qrCanvas.height = size;
+            ctx.clearRect(0, 0, size, size);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+            for (var row = 0; row < qr.getModuleCount(); row++) {
+                for (var col = 0; col < qr.getModuleCount(); col++) {
+                    if (qr.isDark(row, col)) {
+                        ctx.fillStyle = '#0b0d15';
+                        ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+            qrContainer.style.display = 'block';
+            logMsg('📱 QR code généré — scannez pour installer sur votre téléphone', 'success');
+        } catch (e) {
+            logMsg('⚠️ Erreur génération QR code : ' + e.message, 'warn');
+            qrContainer.style.display = 'none';
+        }
+    }
+
+    // ================================================================
+    //  HISTORIQUE
+    // ================================================================
+    function saveToHistory(repo, url, mode) {
+        try {
+            var history = JSON.parse(localStorage.getItem('builder_history')) || [];
+            var entry = {
+                repo: repo,
+                url: url,
+                timestamp: new Date().toISOString(),
+                mode: mode || currentMode
+            };
+            history.unshift(entry);
+            if (history.length > 10) {
+                history = history.slice(0, 10);
+            }
+            localStorage.setItem('builder_history', JSON.stringify(history));
+            renderHistory();
+        } catch (e) {}
+    }
+
+    function loadHistory() {
+        try {
+            return JSON.parse(localStorage.getItem('builder_history')) || [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function renderHistory() {
+        var history = loadHistory();
+        var list = document.getElementById('historyList');
+        var empty = document.getElementById('historyEmpty');
+        var clearBtn = document.getElementById('clearHistoryBtn');
+
+        list.innerHTML = '';
+
+        if (history.length === 0) {
+            empty.style.display = 'block';
+            clearBtn.style.display = 'none';
+            return;
+        }
+        empty.style.display = 'none';
+        clearBtn.style.display = 'inline-block';
+
+        history.forEach(function(entry) {
+            var div = document.createElement('div');
+            div.className = 'history-entry';
+
+            var info = document.createElement('div');
+            info.className = 'info';
+
+            var repoSpan = document.createElement('span');
+            repoSpan.className = 'repo';
+            repoSpan.textContent = entry.repo;
+
+            var timeSpan = document.createElement('span');
+            timeSpan.className = 'time';
+            var date = new Date(entry.timestamp);
+            var formatted = String(date.getDate()).padStart(2,'0') + '/' +
+                            String(date.getMonth()+1).padStart(2,'0') + ' ' +
+                            String(date.getHours()).padStart(2,'0') + ':' +
+                            String(date.getMinutes()).padStart(2,'0');
+            timeSpan.textContent = formatted;
+
+            var modeSpan = document.createElement('span');
+            modeSpan.className = 'mode-badge';
+            modeSpan.textContent = entry.mode === 'direct' ? 'sandbox' : 'projet';
+
+            info.appendChild(repoSpan);
+            info.appendChild(timeSpan);
+            info.appendChild(modeSpan);
+
+            var dlBtn = document.createElement('button');
+            dlBtn.className = 'dl-btn';
+            dlBtn.textContent = '⬇️ Télécharger';
+            dlBtn.onclick = function(e) {
+                e.stopPropagation();
+                window.open(entry.url, '_blank');
+                logMsg('📥 Téléchargement depuis l\'historique : ' + entry.repo, 'info');
+            };
+
+            div.appendChild(info);
+            div.appendChild(dlBtn);
+            list.appendChild(div);
+        });
+    }
+
+    function clearHistory() {
+        if (confirm('🗑️ Vider tout l\'historique des builds ?')) {
+            localStorage.removeItem('builder_history');
+            renderHistory();
+            logMsg('🗑️ Historique vidé', 'warn');
+        }
+    }
+
+    function toggleHistory() {
+        var body = document.getElementById('historyBody');
+        var icon = document.getElementById('historyToggleIcon');
+        if (body.style.display === 'none') {
+            body.style.display = 'block';
+            icon.textContent = '▼';
+            renderHistory();
+        } else {
+            body.style.display = 'none';
+            icon.textContent = '▶';
+        }
+    }
+
+    // ================================================================
     //  INIT
     // ================================================================
     document.addEventListener('DOMContentLoaded', function() {
         logMsg('🚀 APK Creator prêt', 'info');
+        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+            Notification.requestPermission().then(function(perm) {
+                if (perm === 'granted') {
+                    logMsg('🔔 Notifications activées', 'info');
+                } else {
+                    logMsg('🔕 Notifications désactivées', 'warn');
+                }
+            });
+        }
         var saved = localStorage.getItem('builder_gh_token');
         if (saved) {
             ghTokenInput.value = saved;
             verifyTokenAndLoadRepos(saved);
         }
         setMode('repo');
+        cancelBtn.style.display = 'none';
+        document.getElementById('historyBody').style.display = 'none';
+        document.getElementById('historyToggleIcon').textContent = '▶';
+        renderHistory();
     });
 
     ghTokenInput.addEventListener('input', function(e) {
@@ -444,6 +1033,7 @@ jobs:
             if (currentMode === 'direct') {
                 buildBtn.disabled = true;
             }
+            cancelBtn.style.display = 'none';
         }
     });
 
@@ -484,7 +1074,9 @@ jobs:
                 setRepoBadgeText('');
             } else {
                 buildBtn.disabled = false;
+                fetchSandboxDefaultBranch(token);
             }
+            cancelBtn.style.display = 'none';
 
         } catch (err) {
             logMsg('❌ ' + err.message, 'error');
@@ -495,6 +1087,7 @@ jobs:
             if (currentMode === 'direct') {
                 buildBtn.disabled = true;
             }
+            cancelBtn.style.display = 'none';
         }
     }
 
@@ -552,10 +1145,15 @@ jobs:
             buildBtn.disabled = false;
             setRepoBadgeText(repo.name);
             logMsg('🎯 ' + repo.name + ' (' + currentBranch + ')', 'highlight');
+            var token = ghTokenInput.value.trim();
+            if (token.length > 20) {
+                fetchExistingIcon(token, currentOwner, currentRepo);
+            }
         } else {
             buildBtn.disabled = true;
             setRepoBadgeText('');
         }
+        cancelBtn.style.display = 'none';
     }
 
     // ================================================================
@@ -631,64 +1229,54 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / MISE À JOUR DU WORKFLOW (avec suppression préalable)
+    //  CRÉATION / MISE À JOUR INTELLIGENTE DU WORKFLOW (avec normalisation)
     // ================================================================
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
 
-        // 1. Supprimer le fichier s'il existe
+        var newYaml = getYamlContent(targetRepo);
+        if (!/on:\s*workflow_dispatch/.test(newYaml)) {
+            throw new Error('YAML invalide : workflow_dispatch manquant');
+        }
+        var newEncoded = utf8_to_b64(newYaml);
+
+        var sha = null;
+        var existingEncoded = null;
+        var fileExists = false;
         try {
             var getRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
             if (getRes.ok) {
                 var data = await getRes.json();
-                var sha = data.sha;
-                logMsg('🗑️ Suppression de l\'ancien workflow (SHA: ' + sha.slice(0,7) + ')', 'warn');
-                var delRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': 'Bearer ' + token,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: 'Suppression avant recréation',
-                        sha: sha,
-                        branch: currentBranch
-                    })
-                });
-                if (!delRes.ok) {
-                    var delErr = await delRes.json();
-                    throw new Error(delErr.message || 'Erreur lors de la suppression');
+                sha = data.sha;
+                existingEncoded = data.content;
+                fileExists = true;
+                logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ')', 'warn');
+                // Normaliser le base64 de GitHub (retire les retours à la ligne)
+                var normalizedExisting = existingEncoded.replace(/\n/g, '');
+                if (normalizedExisting === newEncoded) {
+                    logMsg('✅ Workflow déjà à jour, aucune modification nécessaire', 'success');
+                    return true;
+                } else {
+                    logMsg('🔄 Contenu différent, mise à jour du workflow', 'warn');
                 }
-                logMsg('✅ Ancien workflow supprimé', 'success');
-                await new Promise(function(r) { setTimeout(r, 2000); });
             } else if (getRes.status !== 404) {
                 var err = await getRes.json();
                 throw new Error(err.message || 'Erreur ' + getRes.status);
             } else {
-                logMsg('📝 Aucun workflow existant', 'warn');
+                logMsg('📝 Aucun workflow existant, création initiale', 'warn');
             }
         } catch (e) {
             if (!e.message.includes('404')) throw e;
         }
 
-        // 2. Générer le YAML (avec indentation corrigée)
-        var yamlContent = getYamlContent(targetRepo);
-        if (!/on:\s*workflow_dispatch/.test(yamlContent)) {
-            throw new Error('YAML invalide : workflow_dispatch manquant');
-        }
-
-        var yamlPreview = yamlContent.substring(0, 200);
-        logMsg('📄 Début du YAML : ' + yamlPreview + '...', 'info');
-
-        // 3. Écrire le nouveau fichier
-        var encoded = utf8_to_b64(yamlContent);
         var body = {
-            message: 'feat: workflow APK Creator (recréation)',
-            content: encoded,
+            message: 'feat: workflow APK Creator',
+            content: newEncoded,
             branch: currentBranch
         };
+        if (sha) body.sha = sha;
 
         var putRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
             method: 'PUT',
@@ -705,13 +1293,13 @@ jobs:
         }
 
         var result = await putRes.json();
-        logMsg('✅ Workflow créé (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
+        logMsg('✅ Workflow mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
 
-        // 4. Attendre l'indexation (10 secondes)
-        logMsg('⏳ Attente 10s pour indexation...', 'warn');
-        await new Promise(function(r) { setTimeout(r, 10000); });
+        if (!fileExists) {
+            logMsg('⏳ Indexation en cours...', 'warn');
+            await new Promise(function(r) { setTimeout(r, 3000); });
+        }
 
-        // 5. Vérifier que le workflow est listé
         try {
             var checkRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows', {
                 headers: { 'Authorization': 'Bearer ' + token }
@@ -724,7 +1312,7 @@ jobs:
                 if (found) {
                     logMsg('✅ Workflow détecté comme actif', 'success');
                 } else {
-                    logMsg('⚠️ Workflow non détecté, on continue quand même', 'warn');
+                    logMsg('⚠️ Workflow non encore actif, mais le dispatch devrait fonctionner', 'warn');
                 }
             }
         } catch(e) {}
@@ -747,7 +1335,9 @@ jobs:
         buildInProgress = true;
         buildBtn.disabled = true;
         downloadBtn.style.display = 'none';
+        qrContainer.style.display = 'none';
         directDownloadUrl = '#';
+        currentRunId = null;
 
         logMsg('═══════════════════', 'highlight');
 
@@ -768,7 +1358,7 @@ jobs:
                 await pushCodeToSandbox(token, code);
                 targetOwner = SANDBOX_OWNER;
                 targetRepo = SANDBOX_REPO;
-                logMsg('🚀 Build sandbox : ' + targetRepo, 'highlight');
+                logMsg('🚀 Build sandbox : ' + targetRepo + ' (branche: ' + currentBranch + ')', 'highlight');
             } else {
                 if (!currentRepo) {
                     logMsg('❌ Aucun projet sélectionné', 'error');
@@ -778,17 +1368,27 @@ jobs:
                 }
                 targetOwner = currentOwner;
                 targetRepo = currentRepo;
-                logMsg('🚀 Build : ' + targetRepo, 'highlight');
+                logMsg('🚀 Build : ' + targetRepo + ' (branche: ' + currentBranch + ')', 'highlight');
+            }
+
+            if (newIconData && newIconData.dataURL) {
+                logMsg('🖼️ Nouvelle icône détectée, envoi vers le repo...', 'info');
+                var iconOk = await pushIconToRepo(token, targetOwner, targetRepo, newIconData);
+                if (!iconOk) {
+                    logMsg('⚠️ Échec de l\'envoi de l\'icône, le build continue avec l\'icône existante', 'warn');
+                }
             }
 
             setStatus('⚙️ Démarrage...', 'running');
 
             await ensureWorkflowExists(token, targetOwner, targetRepo);
 
-            // Envoi du dispatch avec retry
             logMsg('📡 Envoi commande...', 'info');
             var dispatchRes = null;
-            for (var attempt = 0; attempt < 5; attempt++) {
+            var maxAttempts = 5;
+            var attempt = 0;
+            while (attempt < maxAttempts) {
+                attempt++;
                 dispatchRes = await fetch(
                     'https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows/' + WORKFLOW_FILENAME + '/dispatches',
                     {
@@ -806,10 +1406,46 @@ jobs:
                     break;
                 }
 
-                if (attempt < 4) {
-                    logMsg('⏳ Retentative (' + (attempt + 1) + '/5)...', 'warn');
-                    await new Promise(function(r) { setTimeout(r, 3000); });
+                if (attempt >= maxAttempts) break;
+
+                var waitTime = 3000;
+                var rateLimitMsg = '';
+
+                if (dispatchRes.status === 403 || dispatchRes.status === 429) {
+                    var retryAfter = dispatchRes.headers.get('Retry-After');
+                    if (retryAfter) {
+                        var retrySeconds = parseInt(retryAfter, 10);
+                        if (!isNaN(retrySeconds) && retrySeconds > 0) {
+                            waitTime = Math.min(retrySeconds * 1000, 60000);
+                            rateLimitMsg = ' (Retry-After: ' + retrySeconds + 's)';
+                        } else {
+                            var retryDate = new Date(retryAfter);
+                            if (!isNaN(retryDate.getTime())) {
+                                var diff = (retryDate.getTime() - Date.now());
+                                if (diff > 0) {
+                                    waitTime = Math.min(diff, 60000);
+                                    rateLimitMsg = ' (Retry-After date: ' + Math.round(waitTime/1000) + 's)';
+                                }
+                            }
+                        }
+                    } else {
+                        var remaining = dispatchRes.headers.get('X-RateLimit-Remaining');
+                        var reset = dispatchRes.headers.get('X-RateLimit-Reset');
+                        if (remaining === '0' && reset) {
+                            var resetTime = parseInt(reset, 10) * 1000;
+                            var diff = resetTime - Date.now();
+                            if (diff > 0) {
+                                waitTime = Math.min(diff, 60000);
+                                rateLimitMsg = ' (reset dans ' + Math.round(waitTime/1000) + 's)';
+                            }
+                        }
+                    }
+                    logMsg('⏳ Rate limit atteint, attente de ' + Math.round(waitTime/1000) + 's' + rateLimitMsg, 'warn');
+                } else {
+                    logMsg('⏳ Retentative (' + attempt + '/' + maxAttempts + ')...', 'warn');
                 }
+
+                await new Promise(function(r) { setTimeout(r, waitTime); });
             }
 
             if (dispatchRes.status === 204) {
@@ -818,7 +1454,8 @@ jobs:
                 logMsg('🔍 Recherche run...', 'info');
                 var pollOwner = targetOwner;
                 var pollRepo = targetRepo;
-                setTimeout(function() { startPolling(token, pollOwner, pollRepo); }, 3000);
+                var dispatchTimestamp = new Date().toISOString();
+                setTimeout(function() { startPolling(token, pollOwner, pollRepo, dispatchTimestamp); }, 3000);
             } else {
                 var err = await dispatchRes.json().catch(function() { return {}; });
                 throw new Error(err.message || 'Erreur ' + dispatchRes.status);
@@ -829,16 +1466,20 @@ jobs:
             setStatus('❌ Échec', 'err');
             buildBtn.disabled = false;
             buildInProgress = false;
+            currentRunId = null;
+            cancelBtn.style.display = 'none';
         }
     }
 
     // ================================================================
-    //  POLLING
+    //  POLLING ROBUSTE
     // ================================================================
-    function startPolling(token, pollOwner, pollRepo) {
+    function startPolling(token, pollOwner, pollRepo, dispatchTimestamp) {
         if (pollingInterval) clearInterval(pollingInterval);
         var attempts = 0;
         var maxAttempts = 90;
+        var dispatchDate = new Date(dispatchTimestamp);
+        var toleranceMs = 5000;
 
         pollingInterval = setInterval(async function() {
             attempts++;
@@ -848,12 +1489,14 @@ jobs:
                 setStatus('⏱️ Timeout', 'err');
                 buildBtn.disabled = false;
                 buildInProgress = false;
+                currentRunId = null;
+                cancelBtn.style.display = 'none';
                 return;
             }
 
             try {
                 var res = await fetch(
-                    'https://api.github.com/repos/' + pollOwner + '/' + pollRepo + '/actions/runs?event=workflow_dispatch&per_page=1',
+                    'https://api.github.com/repos/' + pollOwner + '/' + pollRepo + '/actions/runs?event=workflow_dispatch&per_page=5',
                     { headers: { 'Authorization': 'Bearer ' + token } }
                 );
                 if (!res.ok) return;
@@ -864,7 +1507,18 @@ jobs:
                     return;
                 }
 
-                var run = data.workflow_runs[0];
+                var filteredRuns = data.workflow_runs.filter(function(run) {
+                    var runDate = new Date(run.created_at);
+                    return runDate.getTime() >= dispatchDate.getTime() - toleranceMs;
+                });
+
+                if (filteredRuns.length === 0) {
+                    logMsg('⏳ File d\'attente...', 'warn');
+                    return;
+                }
+
+                var run = filteredRuns[0];
+                currentRunId = run.id;
                 var status = run.status;
                 var conclusion = run.conclusion;
 
@@ -877,6 +1531,22 @@ jobs:
                     clearInterval(pollingInterval);
                     buildBtn.disabled = false;
                     buildInProgress = false;
+                    currentRunId = null;
+                    cancelBtn.style.display = 'none';
+
+                    if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                        try {
+                            var notifTitle = (conclusion === 'success') ? '✅ Build réussi' : '❌ Build échoué';
+                            var notifBody = (conclusion === 'success')
+                                ? pollRepo + ' est prêt à télécharger'
+                                : pollRepo + ' — voir les logs pour le détail';
+                            var notif = new Notification(notifTitle, { body: notifBody, silent: false });
+                            notif.onclick = function() {
+                                window.focus();
+                                notif.close();
+                            };
+                        } catch (e) {}
+                    }
 
                     if (conclusion === 'success') {
                         logMsg('✅🎉 Succès !', 'success');
@@ -885,6 +1555,8 @@ jobs:
                         var url = 'https://github.com/' + pollOwner + '/' + pollRepo + '/releases/download/latest/' + pollRepo + '-debug.apk';
                         directDownloadUrl = url;
                         downloadBtn.style.display = 'block';
+                        generateQR(url);
+                        saveToHistory(pollRepo, url, currentMode);
                         logMsg('🔗 APK prêt', 'success');
                     } else {
                         logMsg('❌ Échec (' + conclusion + ')', 'error');
@@ -894,6 +1566,75 @@ jobs:
                 }
             } catch (e) {}
         }, 8000);
+    }
+
+    // ================================================================
+    //  ANNULATION DU BUILD
+    // ================================================================
+    async function cancelBuild() {
+        if (!buildInProgress) {
+            logMsg('⚠️ Aucun build en cours à annuler', 'warn');
+            return;
+        }
+
+        var token = ghTokenInput.value.trim();
+        if (!token || token.length < 20) {
+            logMsg('❌ Token invalide pour l\'annulation', 'error');
+            return;
+        }
+
+        logMsg('🛑 Demande d\'annulation du build...', 'warn');
+
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+            logMsg('✅ Polling arrêté côté client', 'info');
+        }
+
+        if (currentRunId) {
+            try {
+                var cancelRes = await fetch(
+                    'https://api.github.com/repos/' + currentOwner + '/' + currentRepo + '/actions/runs/' + currentRunId + '/cancel',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + token,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    }
+                );
+
+                if (cancelRes.status === 202) {
+                    logMsg('✅ Annulation demandée avec succès (run #' + currentRunId + ')', 'success');
+                } else if (cancelRes.status === 409) {
+                    logMsg('⚠️ Le run est déjà terminé, impossible d\'annuler (status 409)', 'warn');
+                } else {
+                    var errText = await cancelRes.text();
+                    logMsg('⚠️ Impossible d\'annuler le run distant : ' + cancelRes.status + ' ' + errText, 'error');
+                }
+            } catch (err) {
+                logMsg('⚠️ Erreur lors de l\'annulation distante : ' + err.message, 'error');
+            }
+        } else {
+            logMsg('⚠️ Aucun run ID disponible, annulation distante impossible', 'warn');
+        }
+
+        buildInProgress = false;
+        buildBtn.disabled = false;
+        cancelBtn.style.display = 'none';
+        currentRunId = null;
+        directDownloadUrl = '#';
+        downloadBtn.style.display = 'none';
+        qrContainer.style.display = 'none';
+
+        if (currentMode === 'repo' && currentRepo) {
+            buildBtn.disabled = false;
+        } else if (currentMode === 'direct') {
+            buildBtn.disabled = false;
+        }
+
+        setStatus('⏳ En attente', 'wait');
+        logMsg('🔄 Interface réinitialisée après annulation', 'info');
     }
 
     // ================================================================
@@ -917,6 +1658,9 @@ jobs:
         buildBtn.disabled = true;
         downloadBtn.style.display = 'none';
         directDownloadUrl = '#';
+        currentRunId = null;
+        cancelBtn.style.display = 'none';
+        qrContainer.style.display = 'none';
         setStatus('⏳ En attente', 'wait');
         logMsg('🔄 Réinitialisé', 'warn');
     };
