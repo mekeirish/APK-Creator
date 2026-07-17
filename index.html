@@ -161,7 +161,10 @@
             .glass-btn { font-size:0.7rem; padding:0.5rem 0.8rem; }
         }
     </style>
-</head>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4b6cb7">
+<link rel="apple-touch-icon" href="icon.png"></head>
 <body>
 
 <div class="glass-panel">
@@ -409,7 +412,9 @@ jobs:
               let parts = content.split(/<\\/body>/i);
               if (parts.length > 1) {
                 let lastPart = parts.pop();
-                let scripts = '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n</body>';
+                let scripts = '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n
+<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));}</script>
+</body>';
                 let newContent = parts.join('</body>') + scripts + lastPart;
                 fs.writeFileSync(htmlFile, newContent, 'utf8');
                 console.log('✅ Bridge injecté chirurgicalement à la toute fin (dernier </body>)');
