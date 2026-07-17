@@ -1,4 +1,4 @@
-const CACHE_NAME = 'APK-Creator-v1';
+const CACHE_NAME = 'APK-Creator-v2';
 const CDN_URLS = [
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap'
@@ -9,14 +9,19 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        // 1. Fichiers locaux
-        const localFiles = ['./index.html', './manifest.json', './icon.png'];
-        // 2. On ajoute les CDN (attention : ils peuvent être volumineux)
+        const localFiles = [
+          './index.html',
+          './manifest.json',
+          './icon.png',
+          './bridge.js'
+        ];
         const allFiles = [...localFiles, ...CDN_URLS];
         return cache.addAll(allFiles);
       })
       .catch(err => console.warn('Cache installation error:', err))
   );
+  // Activer immédiatement le nouveau SW
+  self.skipWaiting();
 });
 
 // Activation : on supprime les anciens caches
@@ -29,6 +34,8 @@ self.addEventListener('activate', event => {
       );
     })
   );
+  // Prendre le contrôle de tous les clients
+  self.clients.claim();
 });
 
 // Interception : stratégie "Cache First" pour les CDN, puis réseau
@@ -39,14 +46,45 @@ self.addEventListener('fetch', event => {
   if (CDN_URLS.some(cdn => event.request.url.startsWith(cdn))) {
     event.respondWith(
       caches.match(event.request)
-        .then(response => response || fetch(event.request))
+        .then(response => {
+          if (response) return response;
+          return fetch(event.request).then(networkResponse => {
+            // Mettre en cache la réponse pour la prochaine fois
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseClone);
+            });
+            return networkResponse;
+          });
+        })
+        .catch(() => {
+          // Fallback en cas d'échec réseau (retourne une réponse vide)
+          return new Response('', { status: 404, statusText: 'Not Found' });
+        })
     );
     return;
   }
 
-  // Pour tout le reste (fichiers locaux), stratégie classique
+  // Pour tout le reste (fichiers locaux), stratégie classique : cache first, fallback réseau
   event.respondWith(
     caches.match(event.request)
-      .then(response => response || fetch(event.request))
+      .then(response => {
+        if (response) return response;
+        return fetch(event.request).then(networkResponse => {
+          // Mettre en cache les fichiers locaux pour la prochaine fois
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseClone);
+          });
+          return networkResponse;
+        });
+      })
+      .catch(() => {
+        // Si hors ligne et aucune copie en cache, retourner une page d'erreur simple
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html');
+        }
+        return new Response('', { status: 404, statusText: 'Not Found' });
+      })
   );
 });
