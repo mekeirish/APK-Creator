@@ -237,7 +237,7 @@
     }
 
     // ================================================================
-    //  YAML
+    //  YAML — INDENTATION CORRIGÉE (heredoc indenté à 10 espaces)
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -274,14 +274,14 @@ jobs:
           npm init -y
           npm install @capacitor/core @capacitor/android
           npm install -D @capacitor/cli
-          cat > capacitor.config.json << 'EOF'
-        {
-          "appId": "com.brahim.${repoLower}",
-          "appName": "${repoName}",
-          "webDir": "www",
-          "bundledWebRuntime": true
-        }
-        EOF
+          cat > capacitor.config.json << JSONEOF
+          {
+            "appId": "com.brahim.${repoLower}",
+            "appName": "${repoName}",
+            "webDir": "www",
+            "bundledWebRuntime": true
+          }
+          JSONEOF
           npx cap init "${repoName}" "com.brahim.${repoLower}" --web-dir www
           npx cap add android
 
@@ -631,7 +631,7 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION DU WORKFLOW AVEC SUPPRESSION PRÉALABLE
+    //  CRÉATION / MISE À JOUR DU WORKFLOW (avec suppression préalable)
     // ================================================================
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
@@ -673,7 +673,7 @@ jobs:
             if (!e.message.includes('404')) throw e;
         }
 
-        // 2. Générer le YAML
+        // 2. Générer le YAML (avec indentation corrigée)
         var yamlContent = getYamlContent(targetRepo);
         if (!/on:\s*workflow_dispatch/.test(yamlContent)) {
             throw new Error('YAML invalide : workflow_dispatch manquant');
