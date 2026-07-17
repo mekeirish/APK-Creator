@@ -1,13 +1,17 @@
 /**
  * AppBridge — Couteau Suisse pour Capacitor + Web
- * Version 2.1 — Compatibilité ES5, Promesses unifiées, pas de spread operator
+ * Version 2.2 — ES5 strict, Promesses unifiées, Plugins corrects
+ * Usage: AppBridge.haptics.vibrate(200)
  */
 (function(){
   'use strict';
 
   var C = window.Capacitor;
   var isNative = function() { return !!(C && C.Plugins); };
-  var getPlugin = function(name) { return C?.Plugins?.[name] || null; };
+  // Vérification ES5 classique (pas d'optional chaining)
+  var getPlugin = function(name) {
+    return (C && C.Plugins && C.Plugins[name]) || null;
+  };
   var log = function(msg) { console.log('[Bridge]', msg); };
 
   window.AppBridge = {
@@ -15,7 +19,9 @@
     // === DÉTECTION ===
     isNative: isNative,
     getPlugin: getPlugin,
-    platform: function() { return C?.getPlatform?.() || 'web'; },
+    platform: function() {
+      return (C && typeof C.getPlatform === 'function') ? C.getPlatform() : 'web';
+    },
 
     // === 1. HAPTICS ===
     haptics: {
@@ -34,39 +40,42 @@
       }
     },
 
-    // === 2. STOCKAGE — UNIFICATION PROMESSES ===
+    // === 2. STOCKAGE — UNIFICATION PROMESSES (set, remove, clear aussi) ===
     storage: {
       set: function(key, value) {
         var val = typeof value === 'string' ? value : JSON.stringify(value);
         var p = getPlugin('Preferences');
-        if (p) { p.set({ key: key, value: val }); return; }
+        if (p) {
+          return p.set({ key: key, value: val });
+        }
         localStorage.setItem(key, val);
+        return Promise.resolve();
       },
       get: function(key) {
         var p = getPlugin('Preferences');
         if (p) {
-          // Mode natif : retourne une Promesse
           return p.get({ key: key }).then(function(r) {
             try { return JSON.parse(r.value); } catch { return r.value; }
           });
         }
-        // Mode web : retourne aussi une Promesse pour uniformiser
         var val = localStorage.getItem(key);
-        try {
-          return Promise.resolve(JSON.parse(val));
-        } catch {
-          return Promise.resolve(val);
-        }
+        try { return Promise.resolve(JSON.parse(val)); } catch { return Promise.resolve(val); }
       },
       remove: function(key) {
         var p = getPlugin('Preferences');
-        if (p) { p.remove({ key: key }); return; }
+        if (p) {
+          return p.remove({ key: key });
+        }
         localStorage.removeItem(key);
+        return Promise.resolve();
       },
       clear: function() {
         var p = getPlugin('Preferences');
-        if (p) { p.clear(); return; }
+        if (p) {
+          return p.clear();
+        }
         localStorage.clear();
+        return Promise.resolve();
       }
     },
 
@@ -169,17 +178,31 @@
       }
     },
 
-    // === 9. KEEP AWAKE ===
+    // === 9. KEEP AWAKE — Plugin correct : @capacitor-community/keep-awake ===
     keepAwake: {
       enable: function() {
-        var p = getPlugin('Device');
-        if (p) { p.setKeepAwake({ keepAwake: true }); return; }
-        log('KeepAwake non supporté');
+        var p = getPlugin('KeepAwake');
+        if (p) {
+          if (typeof p.keepAwake === 'function') {
+            p.keepAwake();
+          } else {
+            p.setKeepAwake({ keepAwake: true }); // fallback pour anciennes versions
+          }
+          return;
+        }
+        log('KeepAwake non supporté sur le web');
       },
       disable: function() {
-        var p = getPlugin('Device');
-        if (p) { p.setKeepAwake({ keepAwake: false }); return; }
-        log('KeepAwake non supporté');
+        var p = getPlugin('KeepAwake');
+        if (p) {
+          if (typeof p.allowSleep === 'function') {
+            p.allowSleep();
+          } else {
+            p.setKeepAwake({ keepAwake: false }); // fallback
+          }
+          return;
+        }
+        log('KeepAwake non supporté sur le web');
       }
     },
 
@@ -226,28 +249,39 @@
       }
     },
 
-    // === 12. NOTIFICATIONS — Object.assign à la place du spread ===
+    // === 12. NOTIFICATIONS LOCALES — Plugin correct : @capacitor/local-notifications ===
     notifications: {
       requestPermission: function() {
-        var p = getPlugin('PushNotifications');
+        var p = getPlugin('LocalNotifications');
         if (p) {
           return p.requestPermissions().then(function(r) {
-            return r.receive === 'granted';
+            return r.display === 'granted';
           });
         }
-        if (Notification.permission !== 'granted') {
+        if (typeof Notification !== 'undefined') {
           return Notification.requestPermission().then(function(r) {
             return r === 'granted';
           });
         }
-        return Promise.resolve(true);
+        return Promise.resolve(false);
       },
       sendLocal: function(title, body, options) {
         options = options || {};
-        if (Notification.permission === 'granted') {
+        var p = getPlugin('LocalNotifications');
+        if (p) {
+          p.schedule({
+            notifications: [Object.assign({
+              id: Date.now(),
+              title: title,
+              body: body
+            }, options)]
+          });
+          return;
+        }
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           new Notification(title, Object.assign({ body: body }, options));
         } else {
-          log('Notification non autorisée');
+          log('Notification non supportée ou non autorisée');
         }
       }
     },
