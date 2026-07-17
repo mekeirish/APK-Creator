@@ -7,63 +7,451 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
     <style>
-        /* ——— Style identique à la version précédente ——— */
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'Inter',sans-serif; background:#0b0d15; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:12px; }
-        .glass-panel { background:rgba(20,24,40,0.65); backdrop-filter:blur(18px) saturate(180%); -webkit-backdrop-filter:blur(18px) saturate(180%); border:1px solid rgba(255,255,255,0.06); border-radius:2rem; padding:1.5rem 1.2rem 2.2rem; width:100%; max-width:680px; box-shadow:0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04); position:relative; margin-top:20px; }
-        .glass-input { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:1.2rem; padding:0.8rem 1rem; color:#e8edff; font-size:0.9rem; outline:none; transition:border 0.2s, background 0.2s; width:100%; }
-        .glass-input:focus { border-color:rgba(100,140,255,0.5); background:rgba(255,255,255,0.07); box-shadow:0 0 0 4px rgba(100,140,255,0.08); }
-        .glass-input::placeholder { color:rgba(255,255,255,0.25); }
-        .glass-btn { background:rgba(100,140,255,0.12); border:1px solid rgba(100,140,255,0.15); border-radius:1.4rem; padding:0.8rem 1.5rem; font-weight:600; font-size:0.9rem; color:#c8daff; cursor:pointer; transition:background 0.2s, border-color 0.2s, transform 0.1s; width:100%; text-align:center; backdrop-filter:blur(4px); }
-        .glass-btn:hover:not(:disabled) { background:rgba(100,140,255,0.22); border-color:rgba(100,140,255,0.35); color:#fff; }
-        .glass-btn:active:not(:disabled) { transform:scale(0.97); }
-        .glass-btn:disabled { opacity:0.35; cursor:not-allowed; transform:none; }
-        .glass-btn-success { background:rgba(80,220,160,0.12); border-color:rgba(80,220,160,0.2); color:#a0f0d0; }
-        .glass-btn-success:hover:not(:disabled) { background:rgba(80,220,160,0.22); border-color:rgba(80,220,160,0.35); color:#d0fff0; }
-        .badge-glass { display:inline-block; padding:0.15rem 0.8rem; border-radius:100px; font-size:0.6rem; font-weight:600; letter-spacing:0.2px; text-transform:uppercase; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.5); white-space:nowrap; }
-        .badge-glass.ok { background:rgba(80,220,160,0.12); border-color:rgba(80,220,160,0.2); color:#80e0c0; }
-        .badge-glass.err { background:rgba(255,100,100,0.12); border-color:rgba(255,100,100,0.2); color:#ff9090; }
-        .badge-glass.wait { background:rgba(255,200,80,0.12); border-color:rgba(255,200,80,0.2); color:#f0d060; }
-        .repo-badge { font-size:0.7rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.04); border-radius:100px; padding:0.1rem 0.7rem; color:rgba(255,255,255,0.35); white-space:nowrap; max-width:140px; overflow:hidden; text-overflow:ellipsis; }
-        .terminal-glass { margin-top:1.5rem; background:rgba(0,0,0,0.45); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.04); border-radius:1.4rem; overflow:hidden; }
-        .terminal-header { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; background:rgba(0,0,0,0.3); border-bottom:1px solid rgba(255,255,255,0.04); }
-        .terminal-header span { font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; color:rgba(255,255,255,0.25); }
-        .terminal-actions { display:flex; gap:0.4rem; }
-        .terminal-actions button { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:100px; padding:0.15rem 0.6rem; font-size:0.5rem; font-weight:600; color:rgba(255,255,255,0.25); cursor:pointer; transition:background 0.15s, color 0.15s; text-transform:uppercase; letter-spacing:0.3px; }
-        .terminal-actions button:hover { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.5); }
-        .terminal-body { padding:0.6rem 1rem; height:210px; overflow-y:auto; font-size:0.7rem; line-height:1.6; font-family:'JetBrains Mono','Fira Code',monospace; color:#b0c4e0; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.05) transparent; }
-        .terminal-body::-webkit-scrollbar { width:3px; }
-        .terminal-body::-webkit-scrollbar-track { background:transparent; }
-        .terminal-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:10px; }
-        .log-entry { display:flex; gap:0.5rem; align-items:baseline; padding:0.05rem 0; }
-        .log-time { color:rgba(255,255,255,0.12); font-size:0.55rem; flex-shrink:0; min-width:3.2rem; }
-        .log-msg { word-break:break-word; font-size:0.7rem; }
-        .log-msg.info { color:#b0c4e0; }
-        .log-msg.success { color:#80e0c0; }
-        .log-msg.error { color:#ff9090; }
-        .log-msg.warn { color:#f0d060; }
-        .log-msg.highlight { color:#b0c0ff; font-weight:500; }
-        .dropdown-glass { position:absolute; top:calc(100% + 4px); left:0; width:100%; max-height:160px; overflow-y:auto; background:rgba(16,20,36,0.92); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:1rem; z-index:20; display:none; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.05) transparent; }
-        .dropdown-glass::-webkit-scrollbar { width:3px; }
-        .dropdown-glass::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:10px; }
-        .dropdown-item { padding:0.4rem 1rem; cursor:pointer; color:rgba(255,255,255,0.6); font-size:0.8rem; transition:background 0.15s, color 0.15s; border-bottom:1px solid rgba(255,255,255,0.02); }
-        .dropdown-item:last-child { border-bottom:none; }
-        .dropdown-item:hover { background:rgba(255,255,255,0.04); color:#fff; }
-        .field-wrap { position:relative; margin-bottom:1rem; }
-        .field-wrap label { display:block; font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; color:rgba(255,255,255,0.2); margin-bottom:0.3rem; }
-        .status-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:0.3rem; flex-shrink:0; }
-        .status-dot.idle { background:rgba(255,255,255,0.1); }
-        .status-dot.running { background:#80b0ff; box-shadow:0 0 12px rgba(80,160,255,0.3); animation:pulse-dot 1.2s infinite; }
-        .status-dot.done { background:#80e0c0; }
-        .status-dot.fail { background:#ff9090; }
-        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.4;transform:scale(0.85);} }
-        .signature { position:absolute; bottom:0.9rem; right:1.4rem; font-size:0.45rem; font-weight:400; letter-spacing:0.4px; color:rgba(255,255,255,0.06); text-transform:uppercase; user-select:none; pointer-events:none; }
-        .header-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem; flex-wrap:wrap; gap:0.3rem; }
-        .header-top h1 { font-size:1.1rem; font-weight:700; color:rgba(255,255,255,0.8); letter-spacing:-0.3px; }
-        .header-badges { display:flex; flex-direction:column; align-items:flex-end; gap:0.2rem; flex-shrink:0; }
-        .header-badges .badge-row { display:flex; align-items:center; gap:0.4rem; }
-        @media (max-width:480px) { body { padding:8px 6px 12px; align-items:flex-start; } .glass-panel { padding:1rem 0.8rem 1.8rem; border-radius:1.6rem; margin-top:10px; } .header-top h1 { font-size:0.95rem; } .repo-badge { font-size:0.55rem; max-width:100px; padding:0.05rem 0.5rem; } .badge-glass { font-size:0.5rem; padding:0.1rem 0.6rem; } .status-dot { width:6px; height:6px; } .glass-input { font-size:0.8rem; padding:0.6rem 0.8rem; border-radius:1rem; } .field-wrap { margin-bottom:0.7rem; } .field-wrap label { font-size:0.5rem; } .glass-btn { font-size:0.8rem; padding:0.6rem 1rem; border-radius:1.2rem; } .terminal-glass { margin-top:1rem; border-radius:1.2rem; } .terminal-header { padding:0.3rem 0.7rem; } .terminal-header span { font-size:0.5rem; } .terminal-actions button { font-size:0.4rem; padding:0.1rem 0.4rem; } .terminal-body { height:150px; padding:0.4rem 0.7rem; font-size:0.6rem; line-height:1.5; } .log-time { font-size:0.45rem; min-width:2.6rem; } .log-msg { font-size:0.6rem; } .signature { font-size:0.4rem; bottom:0.6rem; right:1rem; } .dropdown-item { font-size:0.7rem; padding:0.3rem 0.8rem; } }
-        @media (max-width:380px) { .header-top h1 { font-size:0.85rem; } .repo-badge { max-width:80px; font-size:0.5rem; } .badge-glass { font-size:0.45rem; padding:0.05rem 0.4rem; } .glass-btn { font-size:0.7rem; padding:0.5rem 0.8rem; } }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0b0d15;
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 12px 12px 20px;
+        }
+        .glass-panel {
+            background: rgba(20, 24, 40, 0.65);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 2rem;
+            padding: 1.5rem 1.2rem 2.2rem;
+            width: 100%;
+            max-width: 680px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            position: relative;
+            margin-top: 20px;
+        }
+        .glass-input {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 1.2rem;
+            padding: 0.8rem 1rem;
+            color: #e8edff;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border 0.2s, background 0.2s;
+            width: 100%;
+        }
+        .glass-input:focus {
+            border-color: rgba(100, 140, 255, 0.5);
+            background: rgba(255, 255, 255, 0.07);
+            box-shadow: 0 0 0 4px rgba(100, 140, 255, 0.08);
+        }
+        .glass-input::placeholder {
+            color: rgba(255, 255, 255, 0.25);
+        }
+        .glass-btn {
+            background: rgba(100, 140, 255, 0.12);
+            border: 1px solid rgba(100, 140, 255, 0.15);
+            border-radius: 1.4rem;
+            padding: 0.8rem 1.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #c8daff;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s, transform 0.1s;
+            width: 100%;
+            text-align: center;
+            backdrop-filter: blur(4px);
+        }
+        .glass-btn:hover:not(:disabled) {
+            background: rgba(100, 140, 255, 0.22);
+            border-color: rgba(100, 140, 255, 0.35);
+            color: #fff;
+        }
+        .glass-btn:active:not(:disabled) {
+            transform: scale(0.97);
+        }
+        .glass-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .glass-btn-success {
+            background: rgba(80, 220, 160, 0.12);
+            border-color: rgba(80, 220, 160, 0.2);
+            color: #a0f0d0;
+        }
+        .glass-btn-success:hover:not(:disabled) {
+            background: rgba(80, 220, 160, 0.22);
+            border-color: rgba(80, 220, 160, 0.35);
+            color: #d0fff0;
+        }
+        .badge-glass {
+            display: inline-block;
+            padding: 0.15rem 0.8rem;
+            border-radius: 100px;
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.5);
+            white-space: nowrap;
+        }
+        .badge-glass.ok {
+            background: rgba(80, 220, 160, 0.12);
+            border-color: rgba(80, 220, 160, 0.2);
+            color: #80e0c0;
+        }
+        .badge-glass.err {
+            background: rgba(255, 100, 100, 0.12);
+            border-color: rgba(255, 100, 100, 0.2);
+            color: #ff9090;
+        }
+        .badge-glass.wait {
+            background: rgba(255, 200, 80, 0.12);
+            border-color: rgba(255, 200, 80, 0.2);
+            color: #f0d060;
+        }
+        .repo-badge {
+            font-size: 0.7rem;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 100px;
+            padding: 0.1rem 0.7rem;
+            color: rgba(255, 255, 255, 0.35);
+            white-space: nowrap;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .terminal-glass {
+            margin-top: 1.5rem;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 1.4rem;
+            overflow: hidden;
+        }
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .terminal-header span {
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: rgba(255, 255, 255, 0.25);
+        }
+        .terminal-actions {
+            display: flex;
+            gap: 0.4rem;
+        }
+        .terminal-actions button {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 100px;
+            padding: 0.15rem 0.6rem;
+            font-size: 0.5rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.25);
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .terminal-actions button:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.5);
+        }
+        .terminal-body {
+            padding: 0.6rem 1rem;
+            height: 210px;
+            overflow-y: auto;
+            font-size: 0.7rem;
+            line-height: 1.6;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            color: #b0c4e0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.05) transparent;
+        }
+        .terminal-body::-webkit-scrollbar {
+            width: 3px;
+        }
+        .terminal-body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .terminal-body::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+        }
+        .log-entry {
+            display: flex;
+            gap: 0.5rem;
+            align-items: baseline;
+            padding: 0.05rem 0;
+        }
+        .log-time {
+            color: rgba(255, 255, 255, 0.12);
+            font-size: 0.55rem;
+            flex-shrink: 0;
+            min-width: 3.2rem;
+        }
+        .log-msg {
+            word-break: break-word;
+            font-size: 0.7rem;
+        }
+        .log-msg.info {
+            color: #b0c4e0;
+        }
+        .log-msg.success {
+            color: #80e0c0;
+        }
+        .log-msg.error {
+            color: #ff9090;
+        }
+        .log-msg.warn {
+            color: #f0d060;
+        }
+        .log-msg.highlight {
+            color: #b0c0ff;
+            font-weight: 500;
+        }
+
+        .dropdown-glass {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            width: 100%;
+            max-height: 160px;
+            overflow-y: auto;
+            background: rgba(16, 20, 36, 0.92);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 1rem;
+            z-index: 20;
+            display: none;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.05) transparent;
+        }
+        .dropdown-glass::-webkit-scrollbar {
+            width: 3px;
+        }
+        .dropdown-glass::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+        }
+        .dropdown-item {
+            padding: 0.4rem 1rem;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.8rem;
+            transition: background 0.15s, color 0.15s;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+        }
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+        .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+            color: #fff;
+        }
+
+        .field-wrap {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        .field-wrap label {
+            display: block;
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: rgba(255, 255, 255, 0.2);
+            margin-bottom: 0.3rem;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            margin-right: 0.3rem;
+            flex-shrink: 0;
+        }
+        .status-dot.idle {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .status-dot.running {
+            background: #80b0ff;
+            box-shadow: 0 0 12px rgba(80, 160, 255, 0.3);
+            animation: pulse-dot 1.2s infinite;
+        }
+        .status-dot.done {
+            background: #80e0c0;
+        }
+        .status-dot.fail {
+            background: #ff9090;
+        }
+        @keyframes pulse-dot {
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.4;
+                transform: scale(0.85);
+            }
+        }
+
+        .signature {
+            position: absolute;
+            bottom: 0.9rem;
+            right: 1.4rem;
+            font-size: 0.45rem;
+            font-weight: 400;
+            letter-spacing: 0.4px;
+            color: rgba(255, 255, 255, 0.06);
+            text-transform: uppercase;
+            user-select: none;
+            pointer-events: none;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.6rem;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+        }
+        .header-top h1 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.8);
+            letter-spacing: -0.3px;
+        }
+        .header-badges {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.2rem;
+            flex-shrink: 0;
+        }
+        .header-badges .badge-row {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 8px 6px 12px;
+                align-items: flex-start;
+            }
+            .glass-panel {
+                padding: 1rem 0.8rem 1.8rem;
+                border-radius: 1.6rem;
+                margin-top: 10px;
+            }
+            .header-top h1 {
+                font-size: 0.95rem;
+            }
+            .repo-badge {
+                font-size: 0.55rem;
+                max-width: 100px;
+                padding: 0.05rem 0.5rem;
+            }
+            .badge-glass {
+                font-size: 0.5rem;
+                padding: 0.1rem 0.6rem;
+            }
+            .status-dot {
+                width: 6px;
+                height: 6px;
+            }
+            .glass-input {
+                font-size: 0.8rem;
+                padding: 0.6rem 0.8rem;
+                border-radius: 1rem;
+            }
+            .field-wrap {
+                margin-bottom: 0.7rem;
+            }
+            .field-wrap label {
+                font-size: 0.5rem;
+            }
+            .glass-btn {
+                font-size: 0.8rem;
+                padding: 0.6rem 1rem;
+                border-radius: 1.2rem;
+            }
+            .terminal-glass {
+                margin-top: 1rem;
+                border-radius: 1.2rem;
+            }
+            .terminal-header {
+                padding: 0.3rem 0.7rem;
+            }
+            .terminal-header span {
+                font-size: 0.5rem;
+            }
+            .terminal-actions button {
+                font-size: 0.4rem;
+                padding: 0.1rem 0.4rem;
+            }
+            .terminal-body {
+                height: 150px;
+                padding: 0.4rem 0.7rem;
+                font-size: 0.6rem;
+                line-height: 1.5;
+            }
+            .log-time {
+                font-size: 0.45rem;
+                min-width: 2.6rem;
+            }
+            .log-msg {
+                font-size: 0.6rem;
+            }
+            .signature {
+                font-size: 0.4rem;
+                bottom: 0.6rem;
+                right: 1rem;
+            }
+            .dropdown-item {
+                font-size: 0.7rem;
+                padding: 0.3rem 0.8rem;
+            }
+        }
+        @media (max-width: 380px) {
+            .header-top h1 {
+                font-size: 0.85rem;
+            }
+            .repo-badge {
+                max-width: 80px;
+                font-size: 0.5rem;
+            }
+            .badge-glass {
+                font-size: 0.45rem;
+                padding: 0.05rem 0.4rem;
+            }
+            .glass-btn {
+                font-size: 0.7rem;
+                padding: 0.5rem 0.8rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -151,7 +539,8 @@
     const repoBadge = document.getElementById('repoBadge');
 
     // ================================================================
-    //  YAML — AVEC L'ÉTAPE manquante « npx cap sync android »
+    //  YAML — AVEC ÉCHAPPEMENT CORRECT DE ${MAIN_HTML}
+    //  const htmlFile = '${MAIN_HTML}'  →  const htmlFile = '\${MAIN_HTML}'
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -200,14 +589,14 @@ jobs:
           npx cap init "${repoName}" "com.brahim.${repoLower}" --web-dir www
           npx cap add android
 
-      - name: 🔌 Téléchargement du Bridge Universel
+      - name: 🔌 Téléchargement et injection chirurgicale du Bridge (split + pop)
         run: |
           cd capacitor-app/www
           MAIN_HTML=$(find . -maxdepth 1 -name "*.html" | head -n 1)
           if [ -z "$MAIN_HTML" ]; then
             echo "⚠️ Aucun fichier HTML trouvé"
           else
-            echo "📄 Téléchargement du Bridge depuis ${BRIDGE_URL}..."
+            echo "📄 Téléchargement du Bridge..."
             curl -s -o bridge.js "${BRIDGE_URL}" || {
               echo "⚠️ Téléchargement échoué, création d'un bridge minimal"
               cat > bridge.js << 'EOFBRIDGE'
@@ -232,32 +621,34 @@ jobs:
         })();
         EOFBRIDGE
             }
+            # Copie de capacitor.js si disponible
             if [ -f "../node_modules/@capacitor/core/dist/capacitor.js" ]; then
               cp ../node_modules/@capacitor/core/dist/capacitor.js capacitor.js
             else
               echo "⚠️ capacitor.js introuvable"
               touch capacitor.js
             fi
-            # Injection avec awk (insensible à la casse)
-            awk -v s1='<script src="capacitor.js"></script>' \\
-                -v s2='<script src="bridge.js"></script>' \\
-                'BEGIN{IGNORECASE=1} /<\\/body>/ && !done {print s1; print s2; done=1} 1' \\
-                "$MAIN_HTML" > "$MAIN_HTML.tmp" && mv "$MAIN_HTML.tmp" "$MAIN_HTML"
-            echo "✅ Bridge injecté."
+            # Injection chirurgicale : on cible le TOUT DERNIER </body> (insensible à la casse)
+            # ⚠️ CRUCIAL : const htmlFile = '\\${MAIN_HTML}' pour éviter l'interprétation par JavaScript
+            node -e "
+              const fs = require('fs');
+              const htmlFile = '\\${MAIN_HTML}';
+              let content = fs.readFileSync(htmlFile, 'utf8');
+              let parts = content.split(/<\\/body>/i);
+              if (parts.length > 1) {
+                let lastPart = parts.pop();
+                let scripts = '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n</body>';
+                let newContent = parts.join('</body>') + scripts + lastPart;
+                fs.writeFileSync(htmlFile, newContent, 'utf8');
+                console.log('✅ Bridge injecté chirurgicalement à la toute fin (dernier </body>)');
+              } else {
+                console.log('⚠️ Aucun </body> trouvé, injection à la fin du fichier');
+                fs.appendFileSync(htmlFile, '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n');
+              }
+            "
           fi
 
-      - name: 🔒 Minification du code
-        run: |
-          cd capacitor-app
-          npm install -D html-minifier-terser
-          cd www
-          MAIN_HTML=$(find . -maxdepth 1 -name "*.html" | head -n 1)
-          if [ -n "$MAIN_HTML" ]; then
-            echo "📄 Minification de : $MAIN_HTML"
-            npx html-minifier-terser --collapse-whitespace --remove-comments --minify-js true --minify-css true -o "$MAIN_HTML" "$MAIN_HTML"
-          fi
-
-      - name: 🔄 Synchronisation des assets vers Android (CAPITAL)
+      - name: 🔄 Synchronisation des assets vers Android
         run: |
           cd capacitor-app
           npx cap sync android
@@ -517,7 +908,7 @@ jobs:
 
         var yamlContent = getYamlContent(currentRepo);
         var body = {
-            message: 'feat: version stable avec bridge externe + cap sync',
+            message: 'feat: version finale avec échappement ${MAIN_HTML}',
             content: utf8_to_b64(yamlContent),
             branch: currentBranch
         };
