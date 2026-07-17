@@ -131,7 +131,6 @@
             text-overflow: ellipsis;
         }
 
-        /* Terminal */
         .terminal-glass {
             margin-top: 1.5rem;
             background: rgba(0, 0, 0, 0.45);
@@ -230,7 +229,6 @@
             font-weight: 500;
         }
 
-        /* Dropdown glass */
         .dropdown-glass {
             position: absolute;
             top: calc(100% + 4px);
@@ -318,7 +316,6 @@
             }
         }
 
-        /* Signature */
         .signature {
             position: absolute;
             bottom: 0.9rem;
@@ -332,7 +329,6 @@
             pointer-events: none;
         }
 
-        /* Header adapté mobile */
         .header-top {
             display: flex;
             justify-content: space-between;
@@ -360,7 +356,6 @@
             gap: 0.4rem;
         }
 
-        /* Mobile */
         @media (max-width: 480px) {
             body {
                 padding: 8px 6px 12px;
@@ -462,7 +457,6 @@
 <body>
 
 <div class="glass-panel">
-    <!-- En-tête compact -->
     <div class="header-top">
         <h1>APK Creator</h1>
         <div class="header-badges">
@@ -476,20 +470,17 @@
         </div>
     </div>
 
-    <!-- Token -->
     <div class="field-wrap">
         <label>🔑 Clé API GitHub (PAT)</label>
         <input type="password" id="ghToken" class="glass-input" placeholder="ghp_..." autocomplete="off" />
     </div>
 
-    <!-- Projet -->
     <div class="field-wrap">
         <label>📂 Projet cible</label>
         <input type="text" id="repoInput" class="glass-input" placeholder="Entrez un token pour charger les projets..." disabled autocomplete="off" />
         <div id="repoDropdown" class="dropdown-glass"></div>
     </div>
 
-    <!-- Boutons -->
     <div class="flex flex-col gap-2 mt-1">
         <button id="buildBtn" class="glass-btn" onclick="triggerBuild()" disabled>
             🚀 Lancer la compilation
@@ -499,7 +490,6 @@
         </button>
     </div>
 
-    <!-- Terminal -->
     <div class="terminal-glass">
         <div class="terminal-header">
             <span>›_ logs</span>
@@ -516,7 +506,6 @@
         </div>
     </div>
 
-    <!-- Signature -->
     <div class="signature">LAICHE BRAHIM PARIS 2026</div>
 </div>
 
@@ -526,6 +515,7 @@
     // ================================================================
     const WORKFLOW_FILENAME = 'build-apk.yml';
     const WORKFLOW_PATH = `.github/workflows/${WORKFLOW_FILENAME}`;
+    const BRIDGE_URL = 'https://raw.githubusercontent.com/mekeirish/APK-Creator/main/bridge.js';
 
     let reposMap = new Map();
     let currentOwner = '';
@@ -549,10 +539,11 @@
     const repoBadge = document.getElementById('repoBadge');
 
     // ================================================================
-    //  YAML — AVEC MINIFICATION VIA NPX (optimale)
+    //  YAML — TÉLÉCHARGE LE BRIDGE DEPUIS LE MÊME DÉPÔT
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
+
         return `name: Build APK Android
 on:
   workflow_dispatch:
@@ -586,19 +577,72 @@ jobs:
           npm init -y
           npm install @capacitor/core @capacitor/android
           npm install -D @capacitor/cli
+          cat > capacitor.config.json << 'EOF'
+        {
+          "appId": "com.brahim.${repoLower}",
+          "appName": "${repoName}",
+          "webDir": "www",
+          "bundledWebRuntime": true
+        }
+        EOF
           npx cap init "${repoName}" "com.brahim.${repoLower}" --web-dir www
           npx cap add android
 
-      - name: 🔒 Minification du code monolithique (sécurité + performance)
+      - name: 🔌 Téléchargement du Bridge Universel
+        run: |
+          cd capacitor-app/www
+          MAIN_HTML=$(find . -maxdepth 1 -name "*.html" | head -n 1)
+          if [ -z "$MAIN_HTML" ]; then
+            echo "⚠️ Aucun fichier HTML trouvé"
+          else
+            echo "📄 Téléchargement du Bridge depuis ${BRIDGE_URL}..."
+            curl -s -o bridge.js "${BRIDGE_URL}" || {
+              echo "⚠️ Téléchargement échoué, création d'un bridge minimal"
+              cat > bridge.js << 'EOFBRIDGE'
+        (function(){
+          window.AppBridge = {
+            isNative: function(){ return !!(window.Capacitor && window.Capacitor.Plugins); },
+            haptics: {
+              vibrate: function(d){ if(navigator.vibrate) navigator.vibrate(d||200); }
+            },
+            storage: {
+              set: function(k,v){ localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v)); },
+              get: function(k){ try{return JSON.parse(localStorage.getItem(k));}catch{return localStorage.getItem(k);} }
+            },
+            toast: function(msg,d){
+              var el=document.createElement('div');
+              el.textContent=msg;
+              el.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:12px 24px;border-radius:12px;z-index:999;';
+              document.body.appendChild(el);
+              setTimeout(function(){ el.style.opacity='0'; setTimeout(function(){ el.remove(); },300); }, d||2000);
+            }
+          };
+        })();
+        EOFBRIDGE
+            }
+            if [ -f "../node_modules/@capacitor/core/dist/capacitor.js" ]; then
+              cp ../node_modules/@capacitor/core/dist/capacitor.js capacitor.js
+            else
+              echo "⚠️ capacitor.js introuvable"
+              touch capacitor.js
+            fi
+            # Injection avec awk (insensible à la casse)
+            awk -v s1='<script src="capacitor.js"></script>' \\
+                -v s2='<script src="bridge.js"></script>' \\
+                'BEGIN{IGNORECASE=1} /<\\/body>/ && !done {print s1; print s2; done=1} 1' \\
+                "$MAIN_HTML" > "$MAIN_HTML.tmp" && mv "$MAIN_HTML.tmp" "$MAIN_HTML"
+            echo "✅ Bridge injecté."
+          fi
+
+      - name: 🔒 Minification du code
         run: |
           cd capacitor-app
-          MAIN_HTML=$(find www -maxdepth 1 -name "*.html" | head -n 1)
-          if [ -z "$MAIN_HTML" ]; then
-            echo "⚠️ Aucun fichier HTML trouvé, minification ignorée."
-          else
+          npm install -D html-minifier-terser
+          cd www
+          MAIN_HTML=$(find . -maxdepth 1 -name "*.html" | head -n 1)
+          if [ -n "$MAIN_HTML" ]; then
             echo "📄 Minification de : $MAIN_HTML"
             npx html-minifier-terser --collapse-whitespace --remove-comments --minify-js true --minify-css true -o "$MAIN_HTML" "$MAIN_HTML"
-            echo "✅ Minification terminée."
           fi
 
       - name: Génération automatique de l'icône
@@ -610,10 +654,10 @@ jobs:
             cp ../icon.png assets/icon.png
             npx @capacitor/assets generate --android
           else
-            echo "⚠️ icon.png introuvable – icône par défaut utilisée"
+            echo "⚠️ icon.png introuvable"
           fi
 
-      - name: Résolution des conflits de doublons Kotlin
+      - name: Résolution des conflits Kotlin
         run: |
           echo "configurations.all { exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'; exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8' }" >> capacitor-app/android/app/build.gradle
 
@@ -623,12 +667,12 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Renommer l'APK avec le nom du projet
+      - name: Renommer l'APK
         run: |
           cd capacitor-app/android/app/build/outputs/apk/debug/
           mv app-debug.apk ${repoName}-debug.apk
 
-      - name: Publication de l'APK en Direct Download (Release)
+      - name: Publication de l'APK en Release
         uses: ncipollo/release-action@v1
         with:
           artifacts: "capacitor-app/android/app/build/outputs/apk/debug/${repoName}-debug.apk"
@@ -642,7 +686,7 @@ jobs:
     }
 
     // ================================================================
-    //  LOGS — horodatage court HH:MM:SS
+    //  LOGS
     // ================================================================
     function logMsg(msg, type = 'info') {
         const now = new Date();
@@ -852,7 +896,7 @@ jobs:
 
         const yamlContent = getYamlContent(currentRepo);
         const body = {
-            message: 'feat: minification via npx (robuste et rapide)',
+            message: 'feat: build APK avec Bridge depuis APK-Creator',
             content: utf8_to_b64(yamlContent),
             branch: currentBranch
         };
