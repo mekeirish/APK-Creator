@@ -303,7 +303,7 @@
     }
 
     // ================================================================
-    //  YAML — Avec workflow_dispatch en tête
+    //  YAML — Avec workflow_dispatch en tête (vérifié)
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -677,7 +677,7 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / MISE À JOUR DU WORKFLOW (avec écrasement forcé)
+    //  CRÉATION / MISE À JOUR DU WORKFLOW (avec suppression préalable)
     // ================================================================
     function utf8_to_b64(str) {
         return btoa(unescape(encodeURIComponent(str)));
@@ -686,33 +686,55 @@ jobs:
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
 
-        var sha = null;
-        // On tente d'abord de récupérer le SHA existant
+        // 1. Supprimer le fichier s'il existe (pour repartir de zéro)
         try {
             var getRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
             if (getRes.ok) {
                 var data = await getRes.json();
-                sha = data.sha;
-                logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ') — écrasement', 'warn');
+                var sha = data.sha;
+                logMsg('🗑️ Suppression de l\'ancien workflow (SHA: ' + sha.slice(0,7) + ')', 'warn');
+                var delRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: 'Suppression avant recréation',
+                        sha: sha,
+                        branch: currentBranch
+                    })
+                });
+                if (!delRes.ok) {
+                    var delErr = await delRes.json();
+                    throw new Error(delErr.message || 'Erreur lors de la suppression');
+                }
+                logMsg('✅ Ancien workflow supprimé', 'success');
+                // Attendre un peu pour que GitHub prenne en compte la suppression
+                await new Promise(function(r) { setTimeout(r, 2000); });
             } else if (getRes.status !== 404) {
                 var err = await getRes.json();
                 throw new Error(err.message || 'Erreur ' + getRes.status);
             } else {
-                logMsg('📝 Nouveau fichier', 'warn');
+                logMsg('📝 Aucun workflow existant', 'warn');
             }
         } catch (e) {
             if (!e.message.includes('404')) throw e;
         }
 
+        // 2. Générer le YAML et afficher un extrait pour vérification
         var yamlContent = getYamlContent(targetRepo);
+        var yamlPreview = yamlContent.substring(0, 200);
+        logMsg('📄 Début du YAML : ' + yamlPreview + '...', 'info');
+
+        // 3. Créer le nouveau fichier
         var body = {
-            message: 'feat: workflow APK Creator (v1)',
+            message: 'feat: workflow APK Creator (v2)',
             content: utf8_to_b64(yamlContent),
             branch: currentBranch
         };
-        if (sha) body.sha = sha;
 
         var putRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
             method: 'PUT',
@@ -729,7 +751,7 @@ jobs:
         }
 
         var result = await putRes.json();
-        logMsg('✅ Workflow mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
+        logMsg('✅ Workflow créé (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
         logMsg('⏳ Pause 5s...', 'warn');
         await new Promise(function(r) { setTimeout(r, 5000); });
         return true;
