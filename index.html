@@ -1,11 +1,9 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<html lang="fr"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>APK Creator · Glass Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&amp;display=swap" rel="stylesheet">
     <style>
         /* ——— Styles identiques à la version précédente ——— */
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -162,9 +160,13 @@
         }
     </style>
 
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="./manifest.json">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#4b6cb7">
-<link rel="apple-touch-icon" href="icon.png"></head>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon.png">
+</head>
 <body>
 
 <div class="glass-panel">
@@ -190,13 +192,13 @@
     <!-- Token -->
     <div class="field-wrap">
         <label>🔑 Clé API GitHub (PAT)</label>
-        <input type="password" id="ghToken" class="glass-input" placeholder="ghp_..." autocomplete="off" />
+        <input type="password" id="ghToken" class="glass-input" placeholder="ghp_..." autocomplete="off">
     </div>
 
     <!-- Mode Projet : sélection du repo -->
     <div class="field-wrap" id="repoField">
         <label>📂 Projet cible</label>
-        <input type="text" id="repoInput" class="glass-input" placeholder="Entrez un token pour charger les projets..." disabled autocomplete="off" />
+        <input type="text" id="repoInput" class="glass-input" placeholder="Entrez un token pour charger les projets..." disabled="" autocomplete="off">
         <div id="repoDropdown" class="dropdown-glass"></div>
     </div>
 
@@ -208,7 +210,7 @@
 
     <!-- Boutons -->
     <div class="flex flex-col gap-2 mt-1">
-        <button id="buildBtn" class="glass-btn" onclick="triggerBuild()" disabled>
+        <button id="buildBtn" class="glass-btn" onclick="triggerBuild()" disabled="">
             🚀 Lancer la compilation
         </button>
         <button id="downloadBtn" class="glass-btn glass-btn-success" onclick="downloadAPK()" style="display:none;">
@@ -412,9 +414,7 @@ jobs:
               let parts = content.split(/<\\/body>/i);
               if (parts.length > 1) {
                 let lastPart = parts.pop();
-                let scripts = '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n
-<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));}</script>
-</body>';
+                let scripts = '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n</body>';
                 let newContent = parts.join('</body>') + scripts + lastPart;
                 fs.writeFileSync(htmlFile, newContent, 'utf8');
                 console.log('✅ Bridge injecté chirurgicalement à la toute fin (dernier </body>)');
@@ -989,5 +989,15 @@ jobs:
     logMsg('💡 Mode Code Direct : Ctrl+Enter pour lancer', 'info');
 </script>
 
-</body>
-</html>
+
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker enregistré !'))
+        .catch(err => console.error('Erreur SW :', err));
+    });
+  }
+</script>
+</body></html>
