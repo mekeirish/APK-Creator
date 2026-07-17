@@ -4,14 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>APK Creator · Glass Console</title>
-
-    <!-- PWA / Installabilité -->
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#4b6cb7">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="./icon.png">
-
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
     <!-- QR Code library -->
@@ -84,9 +76,10 @@
         .code-editor.visible { display:block; }
         .sandbox-badge { display:inline-block; font-size:0.6rem; background:rgba(255,200,80,0.12); border:1px solid rgba(255,200,80,0.15); border-radius:100px; padding:0.1rem 0.8rem; color:#f0d060; }
         .token-warning { font-size:0.55rem; color:rgba(255,200,80,0.5); margin-top:0.3rem; display:flex; align-items:center; gap:0.3rem; }
-        .btn-row { display:flex; gap:0.75rem; }
-        .btn-row .glass-btn { flex:1; }
+        .btn-row { display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; }
+        .btn-row .glass-btn { flex:1; min-width:80px; }
         .btn-row .glass-btn-danger { flex:0 0 auto; width:auto; padding:0.8rem 1.2rem; }
+        .btn-row .glass-btn-sm { flex:0 0 auto; width:auto; padding:0.4rem 1rem; font-size:0.75rem; }
         #qrContainer { display:none; margin-top:0.75rem; padding:1rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:1.2rem; text-align:center; transition:opacity 0.3s ease; }
         #qrContainer canvas { display:block; margin:0 auto; border-radius:8px; }
         #qrContainer p { color:rgba(255,255,255,0.4); font-size:0.7rem; margin-top:0.4rem; }
@@ -329,6 +322,9 @@
         <button id="cancelBtn" class="glass-btn glass-btn-danger" onclick="cancelBuild()" style="display:none;">
             🛑 Annuler
         </button>
+        <button id="checkNowBtn" class="glass-btn glass-btn-sm" onclick="manualCheck()" style="display:none;">
+            🔄 Vérifier maintenant
+        </button>
     </div>
     <button id="downloadBtn" class="glass-btn glass-btn-success" onclick="downloadAPK()" style="display:none; margin-top:0.5rem;">
         ⬇️ Télécharger APK
@@ -396,6 +392,15 @@
     let newIconData = null;
     let existingIconData = null;
 
+    // Variables pour le contexte de polling (rattrapage + bouton manuel)
+    let currentPollToken = null;
+    let currentPollOwner = null;
+    let currentPollRepo = null;
+    let currentPollDispatchDate = null;
+    let currentPollTolerance = 5000;
+    let currentPollAttempts = 0;
+    let currentPollMaxAttempts = 90;
+
     // ================================================================
     //  DOM REFS
     // ================================================================
@@ -404,6 +409,7 @@
     const repoDropdown = document.getElementById('repoDropdown');
     const buildBtn = document.getElementById('buildBtn');
     const cancelBtn = document.getElementById('cancelBtn');
+    const checkNowBtn = document.getElementById('checkNowBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const terminalOutput = document.getElementById('terminalOutput');
     const statusBadge = document.getElementById('statusBadge');
@@ -465,6 +471,7 @@
             }
         }
         cancelBtn.style.display = 'none';
+        checkNowBtn.style.display = 'none';
         qrContainer.style.display = 'none';
         if (newIconData) {
             displayIcon(newIconData.dataURL, newIconData.width, newIconData.height);
@@ -844,8 +851,10 @@ jobs:
 
         if (type === 'running') {
             cancelBtn.style.display = 'inline-block';
+            checkNowBtn.style.display = 'inline-block';
         } else {
             cancelBtn.style.display = 'none';
+            checkNowBtn.style.display = 'none';
         }
     }
 
@@ -854,7 +863,7 @@ jobs:
     }
 
     // ================================================================
-    //  QR CODE GENERATION
+    //  QR CODE GENERATION (CORRIGÉ)
     // ================================================================
     function generateQR(url) {
         if (!qrCanvas) return;
@@ -1001,6 +1010,177 @@ jobs:
     }
 
     // ================================================================
+    //  POLLING — UNE ITÉRATION (réutilisable)
+    // ================================================================
+    async function pollOnce() {
+        // Vérifier si le polling est actif
+        if (!currentPollToken || !currentPollOwner || !currentPollRepo || !currentPollDispatchDate) {
+            return;
+        }
+
+        currentPollAttempts++;
+        if (currentPollAttempts > currentPollMaxAttempts) {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+            logMsg('⏱️ Délai dépassé', 'warn');
+            setStatus('⏱️ Timeout', 'err');
+            buildBtn.disabled = false;
+            buildInProgress = false;
+            currentRunId = null;
+            cancelBtn.style.display = 'none';
+            checkNowBtn.style.display = 'none';
+            // Nettoyer le contexte
+            currentPollToken = null;
+            currentPollOwner = null;
+            currentPollRepo = null;
+            currentPollDispatchDate = null;
+            currentPollAttempts = 0;
+            return;
+        }
+
+        try {
+            var res = await fetch(
+                'https://api.github.com/repos/' + currentPollOwner + '/' + currentPollRepo + '/actions/runs?event=workflow_dispatch&per_page=5',
+                { headers: { 'Authorization': 'Bearer ' + currentPollToken } }
+            );
+            if (!res.ok) return;
+
+            var data = await res.json();
+            if (!data.workflow_runs || data.workflow_runs.length === 0) {
+                logMsg('⏳ File d\'attente...', 'warn');
+                return;
+            }
+
+            var filteredRuns = data.workflow_runs.filter(function(run) {
+                var runDate = new Date(run.created_at);
+                return runDate.getTime() >= currentPollDispatchDate.getTime() - currentPollTolerance;
+            });
+
+            if (filteredRuns.length === 0) {
+                logMsg('⏳ File d\'attente...', 'warn');
+                return;
+            }
+
+            var run = filteredRuns[0];
+            currentRunId = run.id;
+            var status = run.status;
+            var conclusion = run.conclusion;
+
+            if (status === 'queued') {
+                logMsg('⏳ File d\'attente...', 'warn');
+            } else if (status === 'in_progress') {
+                logMsg('🔧 Compilation...', 'info');
+                setStatus('⚙️ Build en cours', 'running');
+            } else if (status === 'completed') {
+                // Arrêter le polling
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                }
+                buildBtn.disabled = false;
+                buildInProgress = false;
+                currentRunId = null;
+                cancelBtn.style.display = 'none';
+                checkNowBtn.style.display = 'none';
+                // Sauvegarder le repo pour les notifications
+                var completedRepo = currentPollRepo;
+                var completedOwner = currentPollOwner;
+                // Nettoyer le contexte
+                currentPollToken = null;
+                currentPollOwner = null;
+                currentPollRepo = null;
+                currentPollDispatchDate = null;
+                currentPollAttempts = 0;
+
+                if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                    try {
+                        var notifTitle = (conclusion === 'success') ? '✅ Build réussi' : '❌ Build échoué';
+                        var notifBody = (conclusion === 'success')
+                            ? completedRepo + ' est prêt à télécharger'
+                            : completedRepo + ' — voir les logs pour le détail';
+                        var notif = new Notification(notifTitle, { body: notifBody, silent: false });
+                        notif.onclick = function() {
+                            window.focus();
+                            notif.close();
+                        };
+                    } catch (e) {}
+                }
+
+                if (conclusion === 'success') {
+                    logMsg('✅🎉 Succès !', 'success');
+                    setStatus('✅ Succès', 'ok');
+
+                    var url = 'https://github.com/' + completedOwner + '/' + completedRepo + '/releases/download/latest/' + completedRepo + '-debug.apk';
+                    directDownloadUrl = url;
+                    downloadBtn.style.display = 'block';
+                    generateQR(url);
+                    saveToHistory(completedRepo, url, currentMode);
+                    logMsg('🔗 APK prêt', 'success');
+                } else {
+                    logMsg('❌ Échec (' + conclusion + ')', 'error');
+                    setStatus('❌ Échec', 'err');
+                    logMsg('📄 ' + run.html_url, 'error');
+                }
+            }
+        } catch (e) {}
+    }
+
+    // ================================================================
+    //  DÉMARRAGE DU POLLING (avec contexte global)
+    // ================================================================
+    function startPolling(token, pollOwner, pollRepo, dispatchTimestamp) {
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+
+        // Stocker le contexte pour les appels ultérieurs (visibilitychange, bouton manuel)
+        currentPollToken = token;
+        currentPollOwner = pollOwner;
+        currentPollRepo = pollRepo;
+        currentPollDispatchDate = new Date(dispatchTimestamp);
+        currentPollTolerance = 5000;
+        currentPollAttempts = 0;
+        currentPollMaxAttempts = 90;
+
+        // Lancer l'intervalle
+        pollingInterval = setInterval(function() {
+            pollOnce();
+        }, 8000);
+
+        // Afficher le bouton "Vérifier maintenant"
+        checkNowBtn.style.display = 'inline-block';
+    }
+
+    // ================================================================
+    //  VÉRIFICATION MANUELLE (bouton)
+    // ================================================================
+    function manualCheck() {
+        if (!buildInProgress) {
+            logMsg('⚠️ Aucun build en cours à vérifier', 'warn');
+            return;
+        }
+        if (!currentPollToken || !currentPollOwner || !currentPollRepo) {
+            logMsg('⚠️ Contexte de polling non disponible', 'warn');
+            return;
+        }
+        logMsg('🔄 Vérification manuelle déclenchée...', 'info');
+        pollOnce();
+    }
+
+    // ================================================================
+    //  RATTRAPAGE AU RETOUR SUR L'ONGLET (visibilitychange)
+    // ================================================================
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && buildInProgress && pollingInterval) {
+            logMsg('👁️ Onglet de retour au premier plan, vérification immédiate...', 'info');
+            pollOnce();
+        }
+    });
+
+    // ================================================================
     //  INIT
     // ================================================================
     document.addEventListener('DOMContentLoaded', function() {
@@ -1021,6 +1201,7 @@ jobs:
         }
         setMode('repo');
         cancelBtn.style.display = 'none';
+        checkNowBtn.style.display = 'none';
         document.getElementById('historyBody').style.display = 'none';
         document.getElementById('historyToggleIcon').textContent = '▶';
         renderHistory();
@@ -1042,6 +1223,7 @@ jobs:
                 buildBtn.disabled = true;
             }
             cancelBtn.style.display = 'none';
+            checkNowBtn.style.display = 'none';
         }
     });
 
@@ -1085,6 +1267,7 @@ jobs:
                 fetchSandboxDefaultBranch(token);
             }
             cancelBtn.style.display = 'none';
+            checkNowBtn.style.display = 'none';
 
         } catch (err) {
             logMsg('❌ ' + err.message, 'error');
@@ -1096,6 +1279,7 @@ jobs:
                 buildBtn.disabled = true;
             }
             cancelBtn.style.display = 'none';
+            checkNowBtn.style.display = 'none';
         }
     }
 
@@ -1162,6 +1346,7 @@ jobs:
             setRepoBadgeText('');
         }
         cancelBtn.style.display = 'none';
+        checkNowBtn.style.display = 'none';
     }
 
     // ================================================================
@@ -1237,7 +1422,7 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / MISE À JOUR INTELLIGENTE DU WORKFLOW
+    //  CRÉATION / MISE À JOUR INTELLIGENTE DU WORKFLOW (avec normalisation)
     // ================================================================
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
@@ -1475,104 +1660,8 @@ jobs:
             buildInProgress = false;
             currentRunId = null;
             cancelBtn.style.display = 'none';
+            checkNowBtn.style.display = 'none';
         }
-    }
-
-    // ================================================================
-    //  POLLING ROBUSTE
-    // ================================================================
-    function startPolling(token, pollOwner, pollRepo, dispatchTimestamp) {
-        if (pollingInterval) clearInterval(pollingInterval);
-        var attempts = 0;
-        var maxAttempts = 90;
-        var dispatchDate = new Date(dispatchTimestamp);
-        var toleranceMs = 5000;
-
-        pollingInterval = setInterval(async function() {
-            attempts++;
-            if (attempts > maxAttempts) {
-                clearInterval(pollingInterval);
-                logMsg('⏱️ Délai dépassé', 'warn');
-                setStatus('⏱️ Timeout', 'err');
-                buildBtn.disabled = false;
-                buildInProgress = false;
-                currentRunId = null;
-                cancelBtn.style.display = 'none';
-                return;
-            }
-
-            try {
-                var res = await fetch(
-                    'https://api.github.com/repos/' + pollOwner + '/' + pollRepo + '/actions/runs?event=workflow_dispatch&per_page=5',
-                    { headers: { 'Authorization': 'Bearer ' + token } }
-                );
-                if (!res.ok) return;
-
-                var data = await res.json();
-                if (!data.workflow_runs || data.workflow_runs.length === 0) {
-                    logMsg('⏳ File d\'attente...', 'warn');
-                    return;
-                }
-
-                var filteredRuns = data.workflow_runs.filter(function(run) {
-                    var runDate = new Date(run.created_at);
-                    return runDate.getTime() >= dispatchDate.getTime() - toleranceMs;
-                });
-
-                if (filteredRuns.length === 0) {
-                    logMsg('⏳ File d\'attente...', 'warn');
-                    return;
-                }
-
-                var run = filteredRuns[0];
-                currentRunId = run.id;
-                var status = run.status;
-                var conclusion = run.conclusion;
-
-                if (status === 'queued') {
-                    logMsg('⏳ File d\'attente...', 'warn');
-                } else if (status === 'in_progress') {
-                    logMsg('🔧 Compilation...', 'info');
-                    setStatus('⚙️ Build en cours', 'running');
-                } else if (status === 'completed') {
-                    clearInterval(pollingInterval);
-                    buildBtn.disabled = false;
-                    buildInProgress = false;
-                    currentRunId = null;
-                    cancelBtn.style.display = 'none';
-
-                    if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                        try {
-                            var notifTitle = (conclusion === 'success') ? '✅ Build réussi' : '❌ Build échoué';
-                            var notifBody = (conclusion === 'success')
-                                ? pollRepo + ' est prêt à télécharger'
-                                : pollRepo + ' — voir les logs pour le détail';
-                            var notif = new Notification(notifTitle, { body: notifBody, silent: false });
-                            notif.onclick = function() {
-                                window.focus();
-                                notif.close();
-                            };
-                        } catch (e) {}
-                    }
-
-                    if (conclusion === 'success') {
-                        logMsg('✅🎉 Succès !', 'success');
-                        setStatus('✅ Succès', 'ok');
-
-                        var url = 'https://github.com/' + pollOwner + '/' + pollRepo + '/releases/download/latest/' + pollRepo + '-debug.apk';
-                        directDownloadUrl = url;
-                        downloadBtn.style.display = 'block';
-                        generateQR(url);
-                        saveToHistory(pollRepo, url, currentMode);
-                        logMsg('🔗 APK prêt', 'success');
-                    } else {
-                        logMsg('❌ Échec (' + conclusion + ')', 'error');
-                        setStatus('❌ Échec', 'err');
-                        logMsg('📄 ' + run.html_url, 'error');
-                    }
-                }
-            } catch (e) {}
-        }, 8000);
     }
 
     // ================================================================
@@ -1629,6 +1718,7 @@ jobs:
         buildInProgress = false;
         buildBtn.disabled = false;
         cancelBtn.style.display = 'none';
+        checkNowBtn.style.display = 'none';
         currentRunId = null;
         directDownloadUrl = '#';
         downloadBtn.style.display = 'none';
@@ -1667,7 +1757,14 @@ jobs:
         directDownloadUrl = '#';
         currentRunId = null;
         cancelBtn.style.display = 'none';
+        checkNowBtn.style.display = 'none';
         qrContainer.style.display = 'none';
+        // Nettoyer le contexte de polling
+        currentPollToken = null;
+        currentPollOwner = null;
+        currentPollRepo = null;
+        currentPollDispatchDate = null;
+        currentPollAttempts = 0;
         setStatus('⏳ En attente', 'wait');
         logMsg('🔄 Réinitialisé', 'warn');
     };
@@ -1689,17 +1786,6 @@ jobs:
     logMsg('📌 Token sauvegardé', 'info');
     logMsg('🪟 Glass · Dark', 'info');
     logMsg('💡 Mode Code Direct : Ctrl+Enter pour lancer', 'info');
-</script>
-
-<!-- Enregistrement du Service Worker -->
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./sw.js')
-        .then(function(reg) { console.log('✅ Service Worker enregistré !'); })
-        .catch(function(err) { console.error('❌ Erreur SW :', err); });
-    });
-  }
 </script>
 
 </body>
