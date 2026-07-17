@@ -1,11 +1,13 @@
-<html lang="fr"><head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>APK Creator · Glass Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&amp;display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
     <style>
-        /* ——— Styles identiques à la version précédente ——— */
+        /* ——— Styles inchangés ——— */
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Inter',sans-serif; background:#0b0d15; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:12px; }
         .glass-panel { background:rgba(20,24,40,0.65); backdrop-filter:blur(18px) saturate(180%); -webkit-backdrop-filter:blur(18px) saturate(180%); border:1px solid rgba(255,255,255,0.06); border-radius:2rem; padding:1.5rem 1.2rem 2.2rem; width:100%; max-width:680px; box-shadow:0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04); position:relative; margin-top:20px; }
@@ -61,7 +63,6 @@
         .header-badges { display:flex; flex-direction:column; align-items:flex-end; gap:0.2rem; flex-shrink:0; }
         .header-badges .badge-row { display:flex; align-items:center; gap:0.4rem; }
 
-        /* Nouveau style pour le toggle et le textarea */
         .mode-toggle {
             display: flex;
             background: rgba(255,255,255,0.04);
@@ -159,13 +160,6 @@
             .glass-btn { font-size:0.7rem; padding:0.5rem 0.8rem; }
         }
     </style>
-
-<link rel="manifest" href="./manifest.json">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#4b6cb7">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icon.png">
 </head>
 <body>
 
@@ -192,17 +186,17 @@
     <!-- Token -->
     <div class="field-wrap">
         <label>🔑 Clé API GitHub (PAT)</label>
-        <input type="password" id="ghToken" class="glass-input" placeholder="ghp_..." autocomplete="off">
+        <input type="password" id="ghToken" class="glass-input" placeholder="ghp_..." autocomplete="off" />
     </div>
 
-    <!-- Mode Projet : sélection du repo -->
+    <!-- Mode Projet -->
     <div class="field-wrap" id="repoField">
         <label>📂 Projet cible</label>
-        <input type="text" id="repoInput" class="glass-input" placeholder="Entrez un token pour charger les projets..." disabled="" autocomplete="off">
+        <input type="text" id="repoInput" class="glass-input" placeholder="Entrez un token pour charger les projets..." disabled autocomplete="off" />
         <div id="repoDropdown" class="dropdown-glass"></div>
     </div>
 
-    <!-- Mode Code Direct : textarea -->
+    <!-- Mode Code Direct -->
     <div class="field-wrap" id="directField" style="display:none;">
         <label>📄 Code HTML <span class="sandbox-badge">📦 testapk</span></label>
         <textarea id="codeInput" class="code-editor" placeholder="Collez ici votre code HTML monolithique..." spellcheck="false"></textarea>
@@ -210,7 +204,7 @@
 
     <!-- Boutons -->
     <div class="flex flex-col gap-2 mt-1">
-        <button id="buildBtn" class="glass-btn" onclick="triggerBuild()" disabled="">
+        <button id="buildBtn" class="glass-btn" onclick="triggerBuild()" disabled>
             🚀 Lancer la compilation
         </button>
         <button id="downloadBtn" class="glass-btn glass-btn-success" onclick="downloadAPK()" style="display:none;">
@@ -244,8 +238,6 @@
     const WORKFLOW_FILENAME = 'build-apk.yml';
     const WORKFLOW_PATH = `.github/workflows/${WORKFLOW_FILENAME}`;
     const BRIDGE_URL = 'https://raw.githubusercontent.com/mekeirish/APK-Creator/main/bridge.js';
-
-    // Dépôt sandbox pour le mode "Code direct"
     const SANDBOX_OWNER = 'mekeirish';
     const SANDBOX_REPO = 'testapk';
 
@@ -256,7 +248,7 @@
     let pollingInterval = null;
     let directDownloadUrl = '#';
     let buildInProgress = false;
-    let currentMode = 'repo'; // 'repo' ou 'direct'
+    let currentMode = 'repo';
 
     // ================================================================
     //  DOM REFS
@@ -279,7 +271,6 @@
     // ================================================================
     function setMode(mode) {
         currentMode = mode;
-        // Mise à jour des boutons
         document.querySelectorAll('.mode-toggle button').forEach(function(btn) {
             btn.classList.toggle('active', btn.dataset.mode === mode);
         });
@@ -287,7 +278,7 @@
         if (mode === 'repo') {
             repoField.style.display = 'block';
             directField.style.display = 'none';
-            // On restaure la sélection si elle existait
+            codeInput.style.display = 'none';
             if (reposMap.size > 0) {
                 repoInput.disabled = false;
                 repoInput.placeholder = 'Tapez le nom du projet...';
@@ -295,9 +286,6 @@
                 repoInput.disabled = true;
                 repoInput.placeholder = 'Entrez un token pour charger les projets...';
             }
-            // On désactive le textarea
-            codeInput.style.display = 'none';
-            // On réinitialise les infos du repo cible (pour le moment, vide)
             currentRepo = '';
             setRepoBadgeText('');
             buildBtn.disabled = true;
@@ -305,23 +293,17 @@
             repoField.style.display = 'none';
             directField.style.display = 'block';
             codeInput.style.display = 'block';
-            // On cible le sandbox
             currentOwner = SANDBOX_OWNER;
             currentRepo = SANDBOX_REPO;
             currentBranch = 'main';
             setRepoBadgeText('🧪 testapk (sandbox)');
-            // Si le token est valide, on active le bouton
             var token = ghTokenInput.value.trim();
-            if (token.length > 20) {
-                buildBtn.disabled = false;
-            } else {
-                buildBtn.disabled = true;
-            }
+            buildBtn.disabled = !(token.length > 20);
         }
     }
 
     // ================================================================
-    //  YAML — inchangé
+    //  YAML — Avec workflow_dispatch en tête
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -369,42 +351,17 @@ jobs:
           npx cap init "${repoName}" "com.brahim.${repoLower}" --web-dir www
           npx cap add android
 
-      - name: 🔌 Téléchargement et injection chirurgicale du Bridge (split + pop)
+      - name: 🔌 Téléchargement et injection chirurgicale du Bridge
         run: |
           cd capacitor-app/www
           MAIN_HTML=$(find . -maxdepth 1 -name "*.html" | head -n 1)
           if [ -z "$MAIN_HTML" ]; then
             echo "⚠️ Aucun fichier HTML trouvé"
           else
-            echo "📄 Téléchargement du Bridge..."
-            curl -s -o bridge.js "${BRIDGE_URL}" || {
-              echo "⚠️ Téléchargement échoué, création d'un bridge minimal"
-              cat > bridge.js << 'EOFBRIDGE'
-        (function(){
-          window.AppBridge = {
-            isNative: function(){ return !!(window.Capacitor && window.Capacitor.Plugins); },
-            haptics: {
-              vibrate: function(d){ if(navigator.vibrate) navigator.vibrate(d||200); }
-            },
-            storage: {
-              set: function(k,v){ localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v)); },
-              get: function(k){ return Promise.resolve(localStorage.getItem(k)); }
-            },
-            toast: function(msg,d){
-              var el=document.createElement('div');
-              el.textContent=msg;
-              el.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:12px 24px;border-radius:12px;z-index:999;';
-              document.body.appendChild(el);
-              setTimeout(function(){ el.style.opacity='0'; setTimeout(function(){ el.remove(); },300); }, d||2000);
-            }
-          };
-        })();
-        EOFBRIDGE
-            }
+            curl -s -o bridge.js "${BRIDGE_URL}" || echo "⚠️ Téléchargement échoué"
             if [ -f "../node_modules/@capacitor/core/dist/capacitor.js" ]; then
               cp ../node_modules/@capacitor/core/dist/capacitor.js capacitor.js
             else
-              echo "⚠️ capacitor.js introuvable"
               touch capacitor.js
             fi
             node -e "
@@ -417,9 +374,9 @@ jobs:
                 let scripts = '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n</body>';
                 let newContent = parts.join('</body>') + scripts + lastPart;
                 fs.writeFileSync(htmlFile, newContent, 'utf8');
-                console.log('✅ Bridge injecté chirurgicalement à la toute fin (dernier </body>)');
+                console.log('✅ Bridge injecté chirurgicalement');
               } else {
-                console.log('⚠️ Aucun </body> trouvé, injection à la fin du fichier');
+                console.log('⚠️ Aucun </body> trouvé, injection à la fin');
                 fs.appendFileSync(htmlFile, '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n');
               }
             "
@@ -535,7 +492,6 @@ jobs:
             ghTokenInput.value = saved;
             verifyTokenAndLoadRepos(saved);
         }
-        // Mode par défaut : repo
         setMode('repo');
     });
 
@@ -558,7 +514,7 @@ jobs:
     });
 
     // ================================================================
-    //  CHARGEMENT DES REPOS (Mode repo)
+    //  CHARGEMENT DES REPOS
     // ================================================================
     async function verifyTokenAndLoadRepos(token) {
         logMsg('🔍 Vérification token...', 'info');
@@ -593,7 +549,6 @@ jobs:
                 buildBtn.disabled = true;
                 setRepoBadgeText('');
             } else {
-                // Mode direct : on active le build si le token est valide
                 buildBtn.disabled = false;
             }
 
@@ -610,7 +565,7 @@ jobs:
     }
 
     // ================================================================
-    //  DROPDOWN (Mode repo)
+    //  DROPDOWN
     // ================================================================
     repoInput.addEventListener('focus', function() {
         if (reposMap.size > 0 && currentMode === 'repo') showDropdown(repoInput.value);
@@ -670,12 +625,11 @@ jobs:
     }
 
     // ================================================================
-    //  MISE À JOUR DU FICHIER INDEX.HTML DU SANDBOX (Mode direct)
+    //  MISE À JOUR DU SANDBOX
     // ================================================================
     async function pushCodeToSandbox(token, code) {
         logMsg('📤 Envoi du code vers le sandbox...', 'info');
         try {
-            // 1. Récupérer le SHA actuel du fichier index.html s'il existe
             var sha = null;
             var getRes = await fetch('https://api.github.com/repos/' + SANDBOX_OWNER + '/' + SANDBOX_REPO + '/contents/index.html', {
                 headers: { 'Authorization': 'Bearer ' + token }
@@ -691,10 +645,7 @@ jobs:
                 logMsg('📝 Nouveau fichier', 'warn');
             }
 
-            // 2. Encoder le contenu en Base64
             var encoded = btoa(unescape(encodeURIComponent(code)));
-
-            // 3. Construire le body
             var body = {
                 message: 'feat: mise à jour depuis APK Creator (code direct)',
                 content: encoded,
@@ -702,7 +653,6 @@ jobs:
             };
             if (sha) body.sha = sha;
 
-            // 4. PUT pour créer/mettre à jour index.html
             var putRes = await fetch('https://api.github.com/repos/' + SANDBOX_OWNER + '/' + SANDBOX_REPO + '/contents/index.html', {
                 method: 'PUT',
                 headers: {
@@ -727,7 +677,7 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / MISE À JOUR DU WORKFLOW
+    //  CRÉATION / MISE À JOUR DU WORKFLOW (avec écrasement forcé)
     // ================================================================
     function utf8_to_b64(str) {
         return btoa(unescape(encodeURIComponent(str)));
@@ -737,7 +687,7 @@ jobs:
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
 
         var sha = null;
-
+        // On tente d'abord de récupérer le SHA existant
         try {
             var getRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
                 headers: { 'Authorization': 'Bearer ' + token }
@@ -745,7 +695,7 @@ jobs:
             if (getRes.ok) {
                 var data = await getRes.json();
                 sha = data.sha;
-                logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ')', 'warn');
+                logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ') — écrasement', 'warn');
             } else if (getRes.status !== 404) {
                 var err = await getRes.json();
                 throw new Error(err.message || 'Erreur ' + getRes.status);
@@ -756,10 +706,9 @@ jobs:
             if (!e.message.includes('404')) throw e;
         }
 
-        // On génère le YAML avec le nom du repo cible (pour le nom de l'APK)
         var yamlContent = getYamlContent(targetRepo);
         var body = {
-            message: 'feat: workflow APK Creator (sandbox)',
+            message: 'feat: workflow APK Creator (v1)',
             content: utf8_to_b64(yamlContent),
             branch: currentBranch
         };
@@ -809,7 +758,6 @@ jobs:
             var targetOwner, targetRepo;
 
             if (currentMode === 'direct') {
-                // Mode Code Direct : on pousse le code vers le sandbox
                 var code = codeInput.value.trim();
                 if (!code) {
                     logMsg('❌ Aucun code HTML à compiler', 'error');
@@ -817,16 +765,14 @@ jobs:
                     buildInProgress = false;
                     return;
                 }
-                // Vérification rapide : doit contenir <html> ou <body>
                 if (!/<html|<!DOCTYPE/i.test(code)) {
-                    logMsg('⚠️ Le code ne semble pas être du HTML valide (pas de <html> ou DOCTYPE)', 'warn');
+                    logMsg('⚠️ Le code ne semble pas être du HTML valide', 'warn');
                 }
                 await pushCodeToSandbox(token, code);
                 targetOwner = SANDBOX_OWNER;
                 targetRepo = SANDBOX_REPO;
                 logMsg('🚀 Build sandbox : ' + targetRepo, 'highlight');
             } else {
-                // Mode Repo
                 if (!currentRepo) {
                     logMsg('❌ Aucun projet sélectionné', 'error');
                     buildBtn.disabled = false;
@@ -840,10 +786,8 @@ jobs:
 
             setStatus('⚙️ Démarrage...', 'running');
 
-            // 1. S'assurer que le workflow existe sur le dépôt cible
             await ensureWorkflowExists(token, targetOwner, targetRepo);
 
-            // 2. Déclencher le workflow
             logMsg('📡 Envoi commande...', 'info');
 
             var dispatchRes = await fetch(
@@ -863,7 +807,6 @@ jobs:
                 logMsg('✅ Commande envoyée', 'success');
                 setStatus('⏳ Compilation...', 'running');
                 logMsg('🔍 Recherche run...', 'info');
-                // On mémorise le repo cible pour le polling
                 var pollOwner = targetOwner;
                 var pollRepo = targetRepo;
                 setTimeout(function() { startPolling(token, pollOwner, pollRepo); }, 3000);
@@ -976,7 +919,6 @@ jobs:
     ghTokenInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') verifyTokenAndLoadRepos(ghTokenInput.value.trim());
     });
-    // Ctrl+Enter dans le textarea pour lancer le build
     codeInput.addEventListener('keydown', function(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -989,15 +931,5 @@ jobs:
     logMsg('💡 Mode Code Direct : Ctrl+Enter pour lancer', 'info');
 </script>
 
-
-
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('Service Worker enregistré !'))
-        .catch(err => console.error('Erreur SW :', err));
-    });
-  }
-</script>
-</body></html>
+</body>
+</html>
