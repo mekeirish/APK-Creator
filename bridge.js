@@ -1,7 +1,6 @@
 /**
  * AppBridge — Couteau Suisse pour Capacitor + Web
- * Version 2.0 — 18 fonctions natives avec fallback automatique
- * Usage: AppBridge.haptics.vibrate(200)
+ * Version 2.1 — Compatibilité ES5, Promesses unifiées, pas de spread operator
  */
 (function(){
   'use strict';
@@ -35,7 +34,7 @@
       }
     },
 
-    // === 2. STOCKAGE ===
+    // === 2. STOCKAGE — UNIFICATION PROMESSES ===
     storage: {
       set: function(key, value) {
         var val = typeof value === 'string' ? value : JSON.stringify(value);
@@ -45,19 +44,19 @@
       },
       get: function(key) {
         var p = getPlugin('Preferences');
-        var val;
         if (p) {
-          var res = p.get({ key: key });
-          if (res && res.then) {
-            return res.then(function(r) {
-              try { return JSON.parse(r.value); } catch { return r.value; }
-            });
-          }
-          val = res.value;
-        } else {
-          val = localStorage.getItem(key);
+          // Mode natif : retourne une Promesse
+          return p.get({ key: key }).then(function(r) {
+            try { return JSON.parse(r.value); } catch { return r.value; }
+          });
         }
-        try { return JSON.parse(val); } catch { return val; }
+        // Mode web : retourne aussi une Promesse pour uniformiser
+        var val = localStorage.getItem(key);
+        try {
+          return Promise.resolve(JSON.parse(val));
+        } catch {
+          return Promise.resolve(val);
+        }
       },
       remove: function(key) {
         var p = getPlugin('Preferences');
@@ -227,7 +226,7 @@
       }
     },
 
-    // === 12. NOTIFICATIONS ===
+    // === 12. NOTIFICATIONS — Object.assign à la place du spread ===
     notifications: {
       requestPermission: function() {
         var p = getPlugin('PushNotifications');
@@ -246,7 +245,7 @@
       sendLocal: function(title, body, options) {
         options = options || {};
         if (Notification.permission === 'granted') {
-          new Notification(title, { body: body, ...options });
+          new Notification(title, Object.assign({ body: body }, options));
         } else {
           log('Notification non autorisée');
         }
