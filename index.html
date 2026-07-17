@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
     <style>
-        /* ——— Styles identiques ——— */
+        /* ——— Tout le CSS est inchangé ——— */
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Inter',sans-serif; background:#0b0d15; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:12px; }
         .glass-panel { background:rgba(20,24,40,0.65); backdrop-filter:blur(18px) saturate(180%); -webkit-backdrop-filter:blur(18px) saturate(180%); border:1px solid rgba(255,255,255,0.06); border-radius:2rem; padding:1.5rem 1.2rem 2.2rem; width:100%; max-width:680px; box-shadow:0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04); position:relative; margin-top:20px; }
@@ -235,7 +235,8 @@
     // ================================================================
     //  CONFIGURATION
     // ================================================================
-    const WORKFLOW_FILENAME = 'build-apk.yml';
+    // ⚡ CHANGEMENT CLÉ : nouveau nom de fichier pour éviter le cache
+    const WORKFLOW_FILENAME = 'build-apk-v2.yml';
     const WORKFLOW_PATH = `.github/workflows/${WORKFLOW_FILENAME}`;
     const BRIDGE_URL = 'https://raw.githubusercontent.com/mekeirish/APK-Creator/main/bridge.js';
     const SANDBOX_OWNER = 'mekeirish';
@@ -303,7 +304,7 @@
     }
 
     // ================================================================
-    //  YAML — Avec workflow_dispatch en tête
+    //  YAML — Avec workflow_dispatch en tête (inchangé)
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -670,19 +671,6 @@ jobs:
             var result = await putRes.json();
             var newSha = result.content.sha;
             logMsg('✅ index.html mis à jour (SHA: ' + newSha.slice(0,7) + ')', 'success');
-
-            // Vérification du contenu
-            var checkRes = await fetch('https://api.github.com/repos/' + SANDBOX_OWNER + '/' + SANDBOX_REPO + '/contents/index.html', {
-                headers: { 'Authorization': 'Bearer ' + token }
-            });
-            if (checkRes.ok) {
-                var checkData = await checkRes.json();
-                if (checkData.sha === newSha) {
-                    logMsg('✅ Confirmation : index.html bien mis à jour', 'success');
-                } else {
-                    logMsg('⚠️ SHA incohérent après mise à jour', 'warn');
-                }
-            }
             return true;
         } catch (err) {
             logMsg('❌ Échec de l\'envoi du code : ' + err.message, 'error');
@@ -702,13 +690,12 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / MISE À JOUR DU WORKFLOW (SANS DELETE, AVEC VÉRIFICATION)
+    //  CRÉATION / MISE À JOUR DU WORKFLOW (version simplifiée)
     // ================================================================
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
 
         var sha = null;
-        var existingContent = null;
         var fileExists = false;
 
         // 1. Lire le fichier s'il existe
@@ -719,23 +706,13 @@ jobs:
             if (getRes.ok) {
                 var data = await getRes.json();
                 sha = data.sha;
-                existingContent = b64_to_utf8(data.content);
                 fileExists = true;
                 logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ')', 'warn');
-                // Vérifier si le contenu est déjà bon
-                if (/on:\s*workflow_dispatch/.test(existingContent)) {
-                    logMsg('✅ Le workflow existe déjà et est valide (workflow_dispatch présent)', 'success');
-                    // On attend juste que GitHub l'ait indexé
-                    await waitForWorkflowIndexation(token, targetOwner, targetRepo);
-                    return true;
-                } else {
-                    logMsg('⚠️ Workflow existant mais sans workflow_dispatch, mise à jour nécessaire', 'warn');
-                }
             } else if (getRes.status !== 404) {
                 var err = await getRes.json();
                 throw new Error(err.message || 'Erreur ' + getRes.status);
             } else {
-                logMsg('📝 Aucun workflow existant, création', 'warn');
+                logMsg('📝 Aucun workflow existant', 'warn');
             }
         } catch (e) {
             if (!e.message.includes('404')) throw e;
@@ -776,40 +753,11 @@ jobs:
         var result = await putRes.json();
         logMsg('✅ Workflow mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
 
-        // 4. Attendre l'indexation par GitHub
-        await waitForWorkflowIndexation(token, targetOwner, targetRepo);
+        // 4. Attendre 10 secondes pour l'indexation
+        logMsg('⏳ Attente 10s pour l\'indexation...', 'warn');
+        await new Promise(function(r) { setTimeout(r, 10000); });
 
         return true;
-    }
-
-    // ================================================================
-    //  ATTENTE DE L'INDEXATION (vérification active via API)
-    // ================================================================
-    async function waitForWorkflowIndexation(token, targetOwner, targetRepo) {
-        logMsg('⏳ Attente de l\'indexation du workflow par GitHub...', 'warn');
-        var maxAttempts = 20; // 20 * 3s = 60s max
-        for (var i = 0; i < maxAttempts; i++) {
-            await new Promise(function(r) { setTimeout(r, 3000); });
-            try {
-                var listRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-                if (listRes.ok) {
-                    var listData = await listRes.json();
-                    var found = listData.workflows.some(function(wf) {
-                        return wf.path === WORKFLOW_PATH && wf.state === 'active';
-                    });
-                    if (found) {
-                        logMsg('✅ Workflow détecté et actif sur GitHub', 'success');
-                        return true;
-                    } else {
-                        logMsg('⏳ En attente de l\'indexation... (' + (i+1) + '/' + maxAttempts + ')', 'warn');
-                    }
-                }
-            } catch (e) {}
-        }
-        logMsg('⚠️ Le workflow n\'a pas été détecté après ' + (maxAttempts*3) + 's, on continue quand même', 'warn');
-        return false;
     }
 
     // ================================================================
@@ -865,34 +813,21 @@ jobs:
 
             await ensureWorkflowExists(token, targetOwner, targetRepo);
 
-            // Envoi du dispatch avec retry
+            // Envoi du dispatch (une seule tentative, mais après l'attente)
             logMsg('📡 Envoi commande...', 'info');
-            var dispatchRes = null;
-            var maxAttempts = 3;
 
-            for (var attempt = 0; attempt < maxAttempts; attempt++) {
-                dispatchRes = await fetch(
-                    'https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows/' + WORKFLOW_FILENAME + '/dispatches',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': 'Bearer ' + token,
-                            'Accept': 'application/vnd.github.v3+json',
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ ref: currentBranch })
-                    }
-                );
-
-                if (dispatchRes.status === 204) {
-                    break;
+            var dispatchRes = await fetch(
+                'https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows/' + WORKFLOW_FILENAME + '/dispatches',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ref: currentBranch })
                 }
-
-                if (attempt < maxAttempts - 1) {
-                    logMsg('⏳ Retentative (' + (attempt + 1) + '/' + maxAttempts + ')...', 'warn');
-                    await new Promise(function(r) { setTimeout(r, 3000); });
-                }
-            }
+            );
 
             if (dispatchRes.status === 204) {
                 logMsg('✅ Commande envoyée', 'success');
