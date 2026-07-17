@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
     <style>
-        /* ——— Styles inchangés ——— */
+        /* ——— Styles identiques ——— */
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Inter',sans-serif; background:#0b0d15; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:12px; }
         .glass-panel { background:rgba(20,24,40,0.65); backdrop-filter:blur(18px) saturate(180%); -webkit-backdrop-filter:blur(18px) saturate(180%); border:1px solid rgba(255,255,255,0.06); border-radius:2rem; padding:1.5rem 1.2rem 2.2rem; width:100%; max-width:680px; box-shadow:0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04); position:relative; margin-top:20px; }
@@ -668,7 +668,21 @@ jobs:
             }
 
             var result = await putRes.json();
-            logMsg('✅ index.html mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
+            // Vérification que le SHA a bien changé
+            var newSha = result.content.sha;
+            logMsg('✅ index.html mis à jour (SHA: ' + newSha.slice(0,7) + ')', 'success');
+            // On vérifie que le contenu a bien été pris en compte
+            var checkRes = await fetch('https://api.github.com/repos/' + SANDBOX_OWNER + '/' + SANDBOX_REPO + '/contents/index.html', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (checkRes.ok) {
+                var checkData = await checkRes.json();
+                if (checkData.sha === newSha) {
+                    logMsg('✅ Confirmation : index.html bien mis à jour', 'success');
+                } else {
+                    logMsg('⚠️ SHA incohérent après mise à jour', 'warn');
+                }
+            }
             return true;
         } catch (err) {
             logMsg('❌ Échec de l\'envoi du code : ' + err.message, 'error');
@@ -677,42 +691,39 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / MISE À JOUR DU WORKFLOW (avec suppression préalable)
+    //  CRÉATION / MISE À JOUR DU WORKFLOW (intelligente, sans DELETE)
     // ================================================================
     function utf8_to_b64(str) {
         return btoa(unescape(encodeURIComponent(str)));
     }
 
+    function b64_to_utf8(str) {
+        return decodeURIComponent(escape(atob(str)));
+    }
+
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
 
-        // 1. Supprimer le fichier s'il existe
+        var sha = null;
+        var existingContent = null;
+
+        // 1. Lire le fichier s'il existe
         try {
             var getRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
             if (getRes.ok) {
                 var data = await getRes.json();
-                var sha = data.sha;
-                logMsg('🗑️ Suppression de l\'ancien workflow (SHA: ' + sha.slice(0,7) + ')', 'warn');
-                var delRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': 'Bearer ' + token,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: 'Suppression avant recréation',
-                        sha: sha,
-                        branch: currentBranch
-                    })
-                });
-                if (!delRes.ok) {
-                    var delErr = await delRes.json();
-                    throw new Error(delErr.message || 'Erreur lors de la suppression');
+                sha = data.sha;
+                existingContent = b64_to_utf8(data.content);
+                logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ')', 'warn');
+                // Vérifier si le contenu est déjà bon (contient workflow_dispatch)
+                if (/on:\s*workflow_dispatch/.test(existingContent)) {
+                    logMsg('✅ Le workflow existe déjà et est valide (workflow_dispatch présent)', 'success');
+                    return true; // On n'a pas besoin de le réécrire
+                } else {
+                    logMsg('⚠️ Workflow existant mais sans workflow_dispatch, on va le mettre à jour', 'warn');
                 }
-                logMsg('✅ Ancien workflow supprimé', 'success');
-                await new Promise(function(r) { setTimeout(r, 2000); });
             } else if (getRes.status !== 404) {
                 var err = await getRes.json();
                 throw new Error(err.message || 'Erreur ' + getRes.status);
@@ -723,17 +734,24 @@ jobs:
             if (!e.message.includes('404')) throw e;
         }
 
-        // 2. Générer le YAML
+        // 2. Générer le nouveau YAML
         var yamlContent = getYamlContent(targetRepo);
+        // Vérification que le YAML contient bien workflow_dispatch
+        if (!/on:\s*workflow_dispatch/.test(yamlContent)) {
+            logMsg('❌ Le YAML généré ne contient pas workflow_dispatch !', 'error');
+            throw new Error('YAML invalide : workflow_dispatch manquant');
+        }
+
         var yamlPreview = yamlContent.substring(0, 200);
         logMsg('📄 Début du YAML : ' + yamlPreview + '...', 'info');
 
-        // 3. Créer le nouveau fichier
+        // 3. Construire la requête PUT (avec SHA si existant)
         var body = {
             message: 'feat: workflow APK Creator (v2)',
             content: utf8_to_b64(yamlContent),
             branch: currentBranch
         };
+        if (sha) body.sha = sha;
 
         var putRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
             method: 'PUT',
@@ -750,17 +768,42 @@ jobs:
         }
 
         var result = await putRes.json();
-        logMsg('✅ Workflow créé (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
+        logMsg('✅ Workflow mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
 
-        // ⏳ PAUSE AUGMENTÉE À 10 SECONDES
-        logMsg('⏳ Attente synchronisation GitHub (10s)...', 'warn');
-        await new Promise(function(r) { setTimeout(r, 10000); });
+        // 4. Attendre que GitHub indexe le workflow (check via API)
+        logMsg('⏳ Attente de la disponibilité du workflow...', 'warn');
+        var workflowReady = false;
+        for (var i = 0; i < 12; i++) {
+            await new Promise(function(r) { setTimeout(r, 3000); });
+            try {
+                var listRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (listRes.ok) {
+                    var listData = await listRes.json();
+                    var found = listData.workflows.some(function(wf) {
+                        return wf.path === WORKFLOW_PATH && wf.state === 'active';
+                    });
+                    if (found) {
+                        logMsg('✅ Workflow détecté et actif sur GitHub', 'success');
+                        workflowReady = true;
+                        break;
+                    } else {
+                        logMsg('⏳ En attente de l\'indexation... (' + (i+1) + '/12)', 'warn');
+                    }
+                }
+            } catch (e) {}
+        }
+
+        if (!workflowReady) {
+            logMsg('⚠️ Le workflow n\'a pas été détecté après 36s, on continue quand même (risque d\'échec)', 'warn');
+        }
 
         return true;
     }
 
     // ================================================================
-    //  DÉCLENCHEMENT DU BUILD (avec boucle de retry)
+    //  DÉCLENCHEMENT DU BUILD
     // ================================================================
     async function triggerBuild() {
         if (buildInProgress) return;
@@ -812,7 +855,7 @@ jobs:
 
             await ensureWorkflowExists(token, targetOwner, targetRepo);
 
-            // 🔄 BOUCLE DE 3 TENTATIVES POUR LE DISPATCH
+            // Maintenant, envoyer la commande dispatch avec retry
             logMsg('📡 Envoi commande...', 'info');
             var dispatchRes = null;
             var maxAttempts = 3;
