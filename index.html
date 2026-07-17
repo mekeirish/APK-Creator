@@ -117,32 +117,27 @@
         </div>
     </div>
 
-    <!-- Toggle Mode -->
     <div class="mode-toggle" id="modeToggle">
         <button class="active" data-mode="repo" onclick="setMode('repo')">📦 Projet</button>
         <button data-mode="direct" onclick="setMode('direct')">✏️ Code direct</button>
     </div>
 
-    <!-- Token -->
     <div class="field-wrap">
         <label>🔑 Clé API GitHub (PAT)</label>
         <input type="password" id="ghToken" class="glass-input" placeholder="ghp_..." autocomplete="off" />
     </div>
 
-    <!-- Mode Projet -->
     <div class="field-wrap" id="repoField">
         <label>📂 Projet cible</label>
         <input type="text" id="repoInput" class="glass-input" placeholder="Entrez un token pour charger les projets..." disabled autocomplete="off" />
         <div id="repoDropdown" class="dropdown-glass"></div>
     </div>
 
-    <!-- Mode Code Direct -->
     <div class="field-wrap" id="directField" style="display:none;">
         <label>📄 Code HTML <span class="sandbox-badge">📦 testapk</span></label>
         <textarea id="codeInput" class="code-editor" placeholder="Collez ici votre code HTML monolithique..." spellcheck="false"></textarea>
     </div>
 
-    <!-- Boutons -->
     <div class="flex flex-col gap-2 mt-1">
         <button id="buildBtn" class="glass-btn" onclick="triggerBuild()" disabled>
             🚀 Lancer la compilation
@@ -636,31 +631,38 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / VÉRIFICATION DU WORKFLOW (méthode qui marche)
+    //  CRÉATION DU WORKFLOW AVEC SUPPRESSION PRÉALABLE
     // ================================================================
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
 
-        var sha = null;
-        var existingContent = null;
-
-        // 1. Lire le fichier s'il existe
+        // 1. Supprimer le fichier s'il existe
         try {
             var getRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
             if (getRes.ok) {
                 var data = await getRes.json();
-                sha = data.sha;
-                existingContent = b64_to_utf8(data.content);
-                logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ')', 'warn');
-                // Vérifier si le contenu est déjà valide
-                if (/on:\s*workflow_dispatch/.test(existingContent)) {
-                    logMsg('✅ Workflow déjà valide', 'success');
-                    return true;
-                } else {
-                    logMsg('⚠️ Workflow existant mais sans workflow_dispatch, mise à jour', 'warn');
+                var sha = data.sha;
+                logMsg('🗑️ Suppression de l\'ancien workflow (SHA: ' + sha.slice(0,7) + ')', 'warn');
+                var delRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: 'Suppression avant recréation',
+                        sha: sha,
+                        branch: currentBranch
+                    })
+                });
+                if (!delRes.ok) {
+                    var delErr = await delRes.json();
+                    throw new Error(delErr.message || 'Erreur lors de la suppression');
                 }
+                logMsg('✅ Ancien workflow supprimé', 'success');
+                await new Promise(function(r) { setTimeout(r, 2000); });
             } else if (getRes.status !== 404) {
                 var err = await getRes.json();
                 throw new Error(err.message || 'Erreur ' + getRes.status);
@@ -680,14 +682,13 @@ jobs:
         var yamlPreview = yamlContent.substring(0, 200);
         logMsg('📄 Début du YAML : ' + yamlPreview + '...', 'info');
 
-        // 3. Écrire le fichier
+        // 3. Écrire le nouveau fichier
         var encoded = utf8_to_b64(yamlContent);
         var body = {
-            message: 'feat: workflow APK Creator',
+            message: 'feat: workflow APK Creator (recréation)',
             content: encoded,
             branch: currentBranch
         };
-        if (sha) body.sha = sha;
 
         var putRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
             method: 'PUT',
@@ -704,13 +705,13 @@ jobs:
         }
 
         var result = await putRes.json();
-        logMsg('✅ Workflow mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
+        logMsg('✅ Workflow créé (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
 
         // 4. Attendre l'indexation (10 secondes)
         logMsg('⏳ Attente 10s pour indexation...', 'warn');
         await new Promise(function(r) { setTimeout(r, 10000); });
 
-        // 5. Vérifier que le workflow est listé (optionnel)
+        // 5. Vérifier que le workflow est listé
         try {
             var checkRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows', {
                 headers: { 'Authorization': 'Bearer ' + token }
