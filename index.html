@@ -400,6 +400,7 @@
     let currentPollTolerance = 5000;
     let currentPollAttempts = 0;
     let currentPollMaxAttempts = 90;
+    let pollInFlight = false; // Verrou anti-concurrence
 
     // ================================================================
     //  DOM REFS
@@ -1010,121 +1011,133 @@ jobs:
     }
 
     // ================================================================
-    //  POLLING — UNE ITÉRATION (réutilisable)
+    //  POLLING — UNE ITÉRATION (réutilisable, avec verrou anti-concurrence)
     // ================================================================
     async function pollOnce() {
-        // Vérifier si le polling est actif
-        if (!currentPollToken || !currentPollOwner || !currentPollRepo || !currentPollDispatchDate) {
+        // Verrou : si un appel est déjà en cours, on ignore
+        if (pollInFlight) {
             return;
         }
-
-        currentPollAttempts++;
-        if (currentPollAttempts > currentPollMaxAttempts) {
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
-            }
-            logMsg('⏱️ Délai dépassé', 'warn');
-            setStatus('⏱️ Timeout', 'err');
-            buildBtn.disabled = false;
-            buildInProgress = false;
-            currentRunId = null;
-            cancelBtn.style.display = 'none';
-            checkNowBtn.style.display = 'none';
-            // Nettoyer le contexte
-            currentPollToken = null;
-            currentPollOwner = null;
-            currentPollRepo = null;
-            currentPollDispatchDate = null;
-            currentPollAttempts = 0;
-            return;
-        }
+        pollInFlight = true;
 
         try {
-            var res = await fetch(
-                'https://api.github.com/repos/' + currentPollOwner + '/' + currentPollRepo + '/actions/runs?event=workflow_dispatch&per_page=5',
-                { headers: { 'Authorization': 'Bearer ' + currentPollToken } }
-            );
-            if (!res.ok) return;
-
-            var data = await res.json();
-            if (!data.workflow_runs || data.workflow_runs.length === 0) {
-                logMsg('⏳ File d\'attente...', 'warn');
+            // Vérifier si le polling est actif
+            if (!currentPollToken || !currentPollOwner || !currentPollRepo || !currentPollDispatchDate) {
                 return;
             }
 
-            var filteredRuns = data.workflow_runs.filter(function(run) {
-                var runDate = new Date(run.created_at);
-                return runDate.getTime() >= currentPollDispatchDate.getTime() - currentPollTolerance;
-            });
-
-            if (filteredRuns.length === 0) {
-                logMsg('⏳ File d\'attente...', 'warn');
-                return;
-            }
-
-            var run = filteredRuns[0];
-            currentRunId = run.id;
-            var status = run.status;
-            var conclusion = run.conclusion;
-
-            if (status === 'queued') {
-                logMsg('⏳ File d\'attente...', 'warn');
-            } else if (status === 'in_progress') {
-                logMsg('🔧 Compilation...', 'info');
-                setStatus('⚙️ Build en cours', 'running');
-            } else if (status === 'completed') {
-                // Arrêter le polling
+            currentPollAttempts++;
+            if (currentPollAttempts > currentPollMaxAttempts) {
                 if (pollingInterval) {
                     clearInterval(pollingInterval);
                     pollingInterval = null;
                 }
+                logMsg('⏱️ Délai dépassé', 'warn');
+                setStatus('⏱️ Timeout', 'err');
                 buildBtn.disabled = false;
                 buildInProgress = false;
                 currentRunId = null;
                 cancelBtn.style.display = 'none';
                 checkNowBtn.style.display = 'none';
-                // Sauvegarder le repo pour les notifications
-                var completedRepo = currentPollRepo;
-                var completedOwner = currentPollOwner;
                 // Nettoyer le contexte
                 currentPollToken = null;
                 currentPollOwner = null;
                 currentPollRepo = null;
                 currentPollDispatchDate = null;
                 currentPollAttempts = 0;
-
-                if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                    try {
-                        var notifTitle = (conclusion === 'success') ? '✅ Build réussi' : '❌ Build échoué';
-                        var notifBody = (conclusion === 'success')
-                            ? completedRepo + ' est prêt à télécharger'
-                            : completedRepo + ' — voir les logs pour le détail';
-                        var notif = new Notification(notifTitle, { body: notifBody, silent: false });
-                        notif.onclick = function() {
-                            window.focus();
-                            notif.close();
-                        };
-                    } catch (e) {}
-                }
-
-                if (conclusion === 'success') {
-                    logMsg('✅🎉 Succès !', 'success');
-                    setStatus('✅ Succès', 'ok');
-
-                    var url = 'https://github.com/' + completedOwner + '/' + completedRepo + '/releases/download/latest/' + completedRepo + '-debug.apk';
-                    directDownloadUrl = url;
-                    downloadBtn.style.display = 'block';
-                    generateQR(url);
-                    saveToHistory(completedRepo, url, currentMode);
-                    logMsg('🔗 APK prêt', 'success');
-                } else {
-                    logMsg('❌ Échec (' + conclusion + ')', 'error');
-                    setStatus('❌ Échec', 'err');
-                    logMsg('📄 ' + run.html_url, 'error');
-                }
+                return;
             }
-        } catch (e) {}
+
+            try {
+                var res = await fetch(
+                    'https://api.github.com/repos/' + currentPollOwner + '/' + currentPollRepo + '/actions/runs?event=workflow_dispatch&per_page=5',
+                    { headers: { 'Authorization': 'Bearer ' + currentPollToken } }
+                );
+                if (!res.ok) return;
+
+                var data = await res.json();
+                if (!data.workflow_runs || data.workflow_runs.length === 0) {
+                    logMsg('⏳ File d\'attente...', 'warn');
+                    return;
+                }
+
+                var filteredRuns = data.workflow_runs.filter(function(run) {
+                    var runDate = new Date(run.created_at);
+                    return runDate.getTime() >= currentPollDispatchDate.getTime() - currentPollTolerance;
+                });
+
+                if (filteredRuns.length === 0) {
+                    logMsg('⏳ File d\'attente...', 'warn');
+                    return;
+                }
+
+                var run = filteredRuns[0];
+                currentRunId = run.id;
+                var status = run.status;
+                var conclusion = run.conclusion;
+
+                if (status === 'queued') {
+                    logMsg('⏳ File d\'attente...', 'warn');
+                } else if (status === 'in_progress') {
+                    logMsg('🔧 Compilation...', 'info');
+                    setStatus('⚙️ Build en cours', 'running');
+                } else if (status === 'completed') {
+                    // Arrêter le polling
+                    if (pollingInterval) {
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                    }
+                    buildBtn.disabled = false;
+                    buildInProgress = false;
+                    currentRunId = null;
+                    cancelBtn.style.display = 'none';
+                    checkNowBtn.style.display = 'none';
+                    // Sauvegarder le repo pour les notifications
+                    var completedRepo = currentPollRepo;
+                    var completedOwner = currentPollOwner;
+                    // Nettoyer le contexte
+                    currentPollToken = null;
+                    currentPollOwner = null;
+                    currentPollRepo = null;
+                    currentPollDispatchDate = null;
+                    currentPollAttempts = 0;
+
+                    if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                        try {
+                            var notifTitle = (conclusion === 'success') ? '✅ Build réussi' : '❌ Build échoué';
+                            var notifBody = (conclusion === 'success')
+                                ? completedRepo + ' est prêt à télécharger'
+                                : completedRepo + ' — voir les logs pour le détail';
+                            var notif = new Notification(notifTitle, { body: notifBody, silent: false });
+                            notif.onclick = function() {
+                                window.focus();
+                                notif.close();
+                            };
+                        } catch (e) {}
+                    }
+
+                    if (conclusion === 'success') {
+                        logMsg('✅🎉 Succès !', 'success');
+                        setStatus('✅ Succès', 'ok');
+
+                        var url = 'https://github.com/' + completedOwner + '/' + completedRepo + '/releases/download/latest/' + completedRepo + '-debug.apk';
+                        directDownloadUrl = url;
+                        downloadBtn.style.display = 'block';
+                        generateQR(url);
+                        saveToHistory(completedRepo, url, currentMode);
+                        logMsg('🔗 APK prêt', 'success');
+                    } else {
+                        logMsg('❌ Échec (' + conclusion + ')', 'error');
+                        setStatus('❌ Échec', 'err');
+                        logMsg('📄 ' + run.html_url, 'error');
+                    }
+                }
+            } catch (e) {
+                // Les erreurs réseau ou autres sont silencieuses pour ne pas polluer les logs
+            }
+        } finally {
+            pollInFlight = false;
+        }
     }
 
     // ================================================================
@@ -1723,6 +1736,13 @@ jobs:
         directDownloadUrl = '#';
         downloadBtn.style.display = 'none';
         qrContainer.style.display = 'none';
+        // Nettoyer le contexte de polling (y compris le verrou)
+        currentPollToken = null;
+        currentPollOwner = null;
+        currentPollRepo = null;
+        currentPollDispatchDate = null;
+        currentPollAttempts = 0;
+        pollInFlight = false;
 
         if (currentMode === 'repo' && currentRepo) {
             buildBtn.disabled = false;
@@ -1765,6 +1785,7 @@ jobs:
         currentPollRepo = null;
         currentPollDispatchDate = null;
         currentPollAttempts = 0;
+        pollInFlight = false;
         setStatus('⏳ En attente', 'wait');
         logMsg('🔄 Réinitialisé', 'warn');
     };
