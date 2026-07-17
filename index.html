@@ -549,7 +549,7 @@
     const repoBadge = document.getElementById('repoBadge');
 
     // ================================================================
-    //  YAML — AVEC MINIFICATION AUTOMATIQUE
+    //  YAML — AVEC MINIFICATION VIA NPX (optimale)
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -592,14 +592,12 @@ jobs:
       - name: 🔒 Minification du code monolithique (sécurité + performance)
         run: |
           cd capacitor-app
-          npm install -g html-minifier-terser
-          # Détection du fichier HTML principal (index.html ou premier .html trouvé)
           MAIN_HTML=$(find www -maxdepth 1 -name "*.html" | head -n 1)
           if [ -z "$MAIN_HTML" ]; then
             echo "⚠️ Aucun fichier HTML trouvé, minification ignorée."
           else
             echo "📄 Minification de : $MAIN_HTML"
-            html-minifier-terser --collapse-whitespace --remove-comments --minify-js true --minify-css true -o "$MAIN_HTML" "$MAIN_HTML"
+            npx html-minifier-terser --collapse-whitespace --remove-comments --minify-js true --minify-css true -o "$MAIN_HTML" "$MAIN_HTML"
             echo "✅ Minification terminée."
           fi
 
@@ -854,7 +852,7 @@ jobs:
 
         const yamlContent = getYamlContent(currentRepo);
         const body = {
-            message: 'feat: ajout minification automatique du code monolithe',
+            message: 'feat: minification via npx (robuste et rapide)',
             content: utf8_to_b64(yamlContent),
             branch: currentBranch
         };
