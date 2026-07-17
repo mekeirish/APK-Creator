@@ -70,7 +70,6 @@
         .code-editor::placeholder { color:rgba(255,255,255,0.2); }
         .code-editor.visible { display:block; }
         .sandbox-badge { display:inline-block; font-size:0.6rem; background:rgba(255,200,80,0.12); border:1px solid rgba(255,200,80,0.15); border-radius:100px; padding:0.1rem 0.8rem; color:#f0d060; }
-
         @media (max-width:480px) {
             body { padding:8px 6px 12px; align-items:flex-start; }
             .glass-panel { padding:1rem 0.8rem 1.8rem; border-radius:1.6rem; margin-top:10px; }
@@ -171,8 +170,6 @@
     // ================================================================
     //  CONFIGURATION
     // ================================================================
-    const WORKFLOW_FILENAME = 'build-apk.yml';
-    const WORKFLOW_PATH = `.github/workflows/${WORKFLOW_FILENAME}`;
     const BRIDGE_URL = 'https://raw.githubusercontent.com/mekeirish/APK-Creator/main/bridge.js';
     const SANDBOX_OWNER = 'mekeirish';
     const SANDBOX_REPO = 'testapk';
@@ -185,6 +182,7 @@
     let directDownloadUrl = '#';
     let buildInProgress = false;
     let currentMode = 'repo';
+    let currentWorkflowFile = ''; // Stocke le nom du fichier utilisé
 
     // ================================================================
     //  DOM REFS
@@ -238,7 +236,7 @@
     }
 
     // ================================================================
-    //  YAML complet (encodage robuste)
+    //  YAML
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -603,8 +601,7 @@ jobs:
             }
 
             var result = await putRes.json();
-            var newSha = result.content.sha;
-            logMsg('✅ index.html mis à jour (SHA: ' + newSha.slice(0,7) + ')', 'success');
+            logMsg('✅ index.html mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
             return true;
         } catch (err) {
             logMsg('❌ Échec de l\'envoi du code : ' + err.message, 'error');
@@ -616,7 +613,6 @@ jobs:
     //  ENCODAGE BASE64 ROBUSTE
     // ================================================================
     function utf8_to_b64(str) {
-        // Encodage Base64 qui préserve les retours à la ligne
         return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
             return String.fromCharCode(parseInt(p1, 16));
         }));
@@ -633,51 +629,72 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION AUTOMATIQUE DU WORKFLOW (infaillible)
+    //  CRÉATION DU WORKFLOW AVEC NOM UNIQUE
     // ================================================================
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
-        logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
+        // Générer un nom de fichier unique avec timestamp
+        var timestamp = Date.now();
+        var uniqueFilename = 'build-' + timestamp + '.yml';
+        var workflowPath = '.github/workflows/' + uniqueFilename;
 
-        var sha = null;
-        var existingContent = null;
+        logMsg('📄 Création workflow : ' + uniqueFilename, 'info');
 
-        // 1. Vérifier si le fichier existe
+        // 1. Vérifier si un workflow existe déjà et le supprimer (pour éviter les doublons)
         try {
-            var getRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
+            var listRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows', {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
-            if (getRes.ok) {
-                var data = await getRes.json();
-                sha = data.sha;
-                existingContent = b64_to_utf8(data.content);
-                logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ')', 'warn');
-                if (/on:\s*workflow_dispatch/.test(existingContent)) {
-                    logMsg('✅ Workflow déjà valide', 'success');
-                    return true;
+            if (listRes.ok) {
+                var listData = await listRes.json();
+                for (var i = 0; i < listData.workflows.length; i++) {
+                    var wf = listData.workflows[i];
+                    if (wf.path && wf.path.includes('build-') && wf.path.endsWith('.yml')) {
+                        if (wf.path !== workflowPath) {
+                            logMsg('🗑️ Suppression ancien workflow : ' + wf.path, 'warn');
+                            // Supprimer le fichier
+                            var getRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + wf.path, {
+                                headers: { 'Authorization': 'Bearer ' + token }
+                            });
+                            if (getRes.ok) {
+                                var data = await getRes.json();
+                                if (data.sha) {
+                                    await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + wf.path, {
+                                        method: 'DELETE',
+                                        headers: {
+                                            'Authorization': 'Bearer ' + token,
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({
+                                            message: 'Suppression ancien workflow',
+                                            sha: data.sha,
+                                            branch: currentBranch
+                                        })
+                                    });
+                                    logMsg('✅ Ancien workflow supprimé', 'success');
+                                }
+                            }
+                        }
+                    }
                 }
-            } else if (getRes.status !== 404) {
-                throw new Error('Erreur lecture : ' + getRes.status);
             }
-        } catch (e) {
-            if (!e.message.includes('404')) throw e;
+        } catch(e) {
+            logMsg('⚠️ Erreur lors du nettoyage : ' + e.message, 'warn');
         }
 
-        // 2. Générer le YAML
+        // 2. Générer le YAML et l'écrire
         var yamlContent = getYamlContent(targetRepo);
         if (!/on:\s*workflow_dispatch/.test(yamlContent)) {
-            throw new Error('YAML invalide : workflow_dispatch manquant');
+            throw new Error('YAML invalide');
         }
 
-        // 3. Encodage robuste et écriture
-        var encodedContent = utf8_to_b64(yamlContent);
+        var encoded = btoa(yamlContent);
         var body = {
-            message: 'feat: workflow APK Creator (v3)',
-            content: encodedContent,
+            message: 'feat: workflow APK Creator (build ' + timestamp + ')',
+            content: encoded,
             branch: currentBranch
         };
-        if (sha) body.sha = sha;
 
-        var putRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
+        var putRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + workflowPath, {
             method: 'PUT',
             headers: {
                 'Authorization': 'Bearer ' + token,
@@ -688,76 +705,46 @@ jobs:
 
         if (!putRes.ok) {
             var errData = await putRes.json();
-            throw new Error(errData.message || 'Erreur écriture : ' + putRes.status);
+            throw new Error(errData.message || 'Erreur écriture');
         }
 
         var result = await putRes.json();
-        logMsg('✅ Workflow mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
+        logMsg('✅ Workflow créé : ' + uniqueFilename + ' (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
 
-        // 4. Vérification post-écriture
-        await new Promise(function(r) { setTimeout(r, 3000); });
-        var checkRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (checkRes.ok) {
-            var checkData = await checkRes.json();
-            var checkContent = b64_to_utf8(checkData.content);
-            if (/on:\s*workflow_dispatch/.test(checkContent)) {
-                logMsg('✅ Vérification : contenu valide', 'success');
-                return true;
-            } else {
-                logMsg('⚠️ Le workflow ne semble pas valide après écriture', 'warn');
-                // On essaie une seconde fois avec un encodage plus simple
-                var fallbackEncoded = btoa(yamlContent);
-                var body2 = {
-                    message: 'feat: workflow APK Creator (fallback)',
-                    content: fallbackEncoded,
-                    branch: currentBranch,
-                    sha: result.content.sha
-                };
-                var put2 = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': 'Bearer ' + token,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(body2)
+        // 3. Attendre l'indexation
+        logMsg('⏳ Attente indexation...', 'warn');
+        var maxWait = 30; // 30 secondes max
+        var found = false;
+        for (var w = 0; w < maxWait; w++) {
+            await new Promise(function(r) { setTimeout(r, 1000); });
+            try {
+                var checkRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows', {
+                    headers: { 'Authorization': 'Bearer ' + token }
                 });
-                if (put2.ok) {
-                    logMsg('✅ Fallback réussi', 'success');
-                    await new Promise(function(r) { setTimeout(r, 3000); });
-                    return true;
+                if (checkRes.ok) {
+                    var checkData = await checkRes.json();
+                    var exists = checkData.workflows.some(function(wf) {
+                        return wf.path === workflowPath && wf.state === 'active';
+                    });
+                    if (exists) {
+                        logMsg('✅ Workflow indexé (' + (w+1) + 's)', 'success');
+                        found = true;
+                        break;
+                    }
                 }
+            } catch(e) {}
+            if ((w+1) % 5 === 0) {
+                logMsg('⏳ En attente... (' + (w+1) + 's)', 'warn');
             }
         }
 
-        // 5. Dernière tentative : écrire via l'API avec un nom différent
-        logMsg('⚠️ Tentative avec un nom de fichier alternatif...', 'warn');
-        var altFilename = 'build-apk-' + Date.now() + '.yml';
-        var altPath = `.github/workflows/${altFilename}`;
-        var body3 = {
-            message: 'feat: workflow APK Creator (alt)',
-            content: btoa(yamlContent),
-            branch: currentBranch
-        };
-        var put3 = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + altPath, {
-            method: 'PUT',
-            headers: {
-                'Authorization': 'Bearer ' + token,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(body3)
-        });
-        if (put3.ok) {
-            logMsg('✅ Workflow créé sous ' + altFilename, 'success');
-            // On met à jour le nom du workflow pour les prochaines étapes
-            WORKFLOW_FILENAME = altFilename;
-            WORKFLOW_PATH = altPath;
-            await new Promise(function(r) { setTimeout(r, 3000); });
-            return true;
+        if (!found) {
+            logMsg('⚠️ Indexation non confirmée, on tente quand même...', 'warn');
         }
 
-        throw new Error('Impossible de créer le workflow automatiquement');
+        // 4. Mettre à jour le nom du fichier pour le dispatch
+        currentWorkflowFile = workflowPath;
+        return workflowPath;
     }
 
     // ================================================================
@@ -790,9 +777,6 @@ jobs:
                     buildInProgress = false;
                     return;
                 }
-                if (!/<html|<!DOCTYPE/i.test(code)) {
-                    logMsg('⚠️ Le code ne semble pas être du HTML valide', 'warn');
-                }
                 await pushCodeToSandbox(token, code);
                 targetOwner = SANDBOX_OWNER;
                 targetRepo = SANDBOX_REPO;
@@ -811,15 +795,16 @@ jobs:
 
             setStatus('⚙️ Démarrage...', 'running');
 
-            // Création automatique du workflow (infaillible)
-            await ensureWorkflowExists(token, targetOwner, targetRepo);
+            // Création du workflow avec nom unique
+            var workflowPath = await ensureWorkflowExists(token, targetOwner, targetRepo);
+            var workflowName = workflowPath.split('/').pop();
 
-            // Envoi du dispatch avec retry
+            // Envoyer le dispatch avec le bon nom de fichier
             logMsg('📡 Envoi commande...', 'info');
             var dispatchRes = null;
-            for (var attempt = 0; attempt < 3; attempt++) {
+            for (var attempt = 0; attempt < 5; attempt++) {
                 dispatchRes = await fetch(
-                    'https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows/' + WORKFLOW_FILENAME + '/dispatches',
+                    'https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows/' + workflowName + '/dispatches',
                     {
                         method: 'POST',
                         headers: {
@@ -830,15 +815,19 @@ jobs:
                         body: JSON.stringify({ ref: currentBranch })
                     }
                 );
-                if (dispatchRes.status === 204) break;
-                if (attempt < 2) {
-                    logMsg('⏳ Retentative (' + (attempt + 1) + '/3)...', 'warn');
+
+                if (dispatchRes.status === 204) {
+                    break;
+                }
+
+                if (attempt < 4) {
+                    logMsg('⏳ Retentative (' + (attempt + 1) + '/5)...', 'warn');
                     await new Promise(function(r) { setTimeout(r, 3000); });
                 }
             }
 
             if (dispatchRes.status === 204) {
-                logMsg('✅ Commande envoyée', 'success');
+                logMsg('✅ Commande envoyée !', 'success');
                 setStatus('⏳ Compilation...', 'running');
                 logMsg('🔍 Recherche run...', 'info');
                 var pollOwner = targetOwner;
