@@ -1,14 +1,22 @@
 {
-  "name": "APK-Creator",
-  "short_name": "APK-Creator",
+  "name": "APK Creator",
+  "short_name": "APK Creator",
+  "description": "Générateur d'APK instantané depuis votre PWA",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#1a1c20",
+  "orientation": "portrait",
+  "background_color": "#0b0d15",
   "theme_color": "#4b6cb7",
   "icons": [
     {
       "src": "icon.png",
       "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     }
