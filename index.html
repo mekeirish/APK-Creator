@@ -303,7 +303,7 @@
     }
 
     // ================================================================
-    //  YAML — Avec workflow_dispatch en tête (vérifié)
+    //  YAML — Avec workflow_dispatch en tête
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -686,7 +686,7 @@ jobs:
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
 
-        // 1. Supprimer le fichier s'il existe (pour repartir de zéro)
+        // 1. Supprimer le fichier s'il existe
         try {
             var getRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
                 headers: { 'Authorization': 'Bearer ' + token }
@@ -712,7 +712,6 @@ jobs:
                     throw new Error(delErr.message || 'Erreur lors de la suppression');
                 }
                 logMsg('✅ Ancien workflow supprimé', 'success');
-                // Attendre un peu pour que GitHub prenne en compte la suppression
                 await new Promise(function(r) { setTimeout(r, 2000); });
             } else if (getRes.status !== 404) {
                 var err = await getRes.json();
@@ -724,7 +723,7 @@ jobs:
             if (!e.message.includes('404')) throw e;
         }
 
-        // 2. Générer le YAML et afficher un extrait pour vérification
+        // 2. Générer le YAML
         var yamlContent = getYamlContent(targetRepo);
         var yamlPreview = yamlContent.substring(0, 200);
         logMsg('📄 Début du YAML : ' + yamlPreview + '...', 'info');
@@ -752,13 +751,16 @@ jobs:
 
         var result = await putRes.json();
         logMsg('✅ Workflow créé (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
-        logMsg('⏳ Pause 5s...', 'warn');
-        await new Promise(function(r) { setTimeout(r, 5000); });
+
+        // ⏳ PAUSE AUGMENTÉE À 10 SECONDES
+        logMsg('⏳ Attente synchronisation GitHub (10s)...', 'warn');
+        await new Promise(function(r) { setTimeout(r, 10000); });
+
         return true;
     }
 
     // ================================================================
-    //  DÉCLENCHEMENT DU BUILD
+    //  DÉCLENCHEMENT DU BUILD (avec boucle de retry)
     // ================================================================
     async function triggerBuild() {
         if (buildInProgress) return;
@@ -810,20 +812,34 @@ jobs:
 
             await ensureWorkflowExists(token, targetOwner, targetRepo);
 
+            // 🔄 BOUCLE DE 3 TENTATIVES POUR LE DISPATCH
             logMsg('📡 Envoi commande...', 'info');
+            var dispatchRes = null;
+            var maxAttempts = 3;
 
-            var dispatchRes = await fetch(
-                'https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows/' + WORKFLOW_FILENAME + '/dispatches',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': 'Bearer ' + token,
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ ref: currentBranch })
+            for (var attempt = 0; attempt < maxAttempts; attempt++) {
+                dispatchRes = await fetch(
+                    'https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows/' + WORKFLOW_FILENAME + '/dispatches',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + token,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ ref: currentBranch })
+                    }
+                );
+
+                if (dispatchRes.status === 204) {
+                    break;
                 }
-            );
+
+                if (attempt < maxAttempts - 1) {
+                    logMsg('⏳ Retentative (' + (attempt + 1) + '/' + maxAttempts + ')...', 'warn');
+                    await new Promise(function(r) { setTimeout(r, 3000); });
+                }
+            }
 
             if (dispatchRes.status === 204) {
                 logMsg('✅ Commande envoyée', 'success');
