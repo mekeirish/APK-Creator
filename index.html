@@ -539,8 +539,7 @@
     const repoBadge = document.getElementById('repoBadge');
 
     // ================================================================
-    //  YAML — AVEC ÉCHAPPEMENT CORRECT DE ${MAIN_HTML}
-    //  const htmlFile = '${MAIN_HTML}'  →  const htmlFile = '\${MAIN_HTML}'
+    //  YAML — AVEC ÉCHAPPEMENT CORRECT : '\${MAIN_HTML}' (UN SEUL ANTISLASH)
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -629,10 +628,10 @@ jobs:
               touch capacitor.js
             fi
             # Injection chirurgicale : on cible le TOUT DERNIER </body> (insensible à la casse)
-            # ⚠️ CRUCIAL : const htmlFile = '\\${MAIN_HTML}' pour éviter l'interprétation par JavaScript
+            # ⚠️ CRUCIAL : const htmlFile = '\${MAIN_HTML}' (UN SEUL antislash) pour que Bash puisse interpréter ${MAIN_HTML}
             node -e "
               const fs = require('fs');
-              const htmlFile = '\\${MAIN_HTML}';
+              const htmlFile = '\${MAIN_HTML}';
               let content = fs.readFileSync(htmlFile, 'utf8');
               let parts = content.split(/<\\/body>/i);
               if (parts.length > 1) {
@@ -908,7 +907,7 @@ jobs:
 
         var yamlContent = getYamlContent(currentRepo);
         var body = {
-            message: 'feat: version finale avec échappement ${MAIN_HTML}',
+            message: 'feat: correction finale échappement simple antislash',
             content: utf8_to_b64(yamlContent),
             branch: currentBranch
         };
