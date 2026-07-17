@@ -668,10 +668,10 @@ jobs:
             }
 
             var result = await putRes.json();
-            // Vérification que le SHA a bien changé
             var newSha = result.content.sha;
             logMsg('✅ index.html mis à jour (SHA: ' + newSha.slice(0,7) + ')', 'success');
-            // On vérifie que le contenu a bien été pris en compte
+
+            // Vérification du contenu
             var checkRes = await fetch('https://api.github.com/repos/' + SANDBOX_OWNER + '/' + SANDBOX_REPO + '/contents/index.html', {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
@@ -691,7 +691,7 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / MISE À JOUR DU WORKFLOW (intelligente, sans DELETE)
+    //  FONCTIONS DE CONVERSION
     // ================================================================
     function utf8_to_b64(str) {
         return btoa(unescape(encodeURIComponent(str)));
@@ -701,11 +701,15 @@ jobs:
         return decodeURIComponent(escape(atob(str)));
     }
 
+    // ================================================================
+    //  CRÉATION / MISE À JOUR DU WORKFLOW (SANS DELETE, AVEC VÉRIFICATION)
+    // ================================================================
     async function ensureWorkflowExists(token, targetOwner, targetRepo) {
         logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
 
         var sha = null;
         var existingContent = null;
+        var fileExists = false;
 
         // 1. Lire le fichier s'il existe
         try {
@@ -716,19 +720,22 @@ jobs:
                 var data = await getRes.json();
                 sha = data.sha;
                 existingContent = b64_to_utf8(data.content);
+                fileExists = true;
                 logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ')', 'warn');
-                // Vérifier si le contenu est déjà bon (contient workflow_dispatch)
+                // Vérifier si le contenu est déjà bon
                 if (/on:\s*workflow_dispatch/.test(existingContent)) {
                     logMsg('✅ Le workflow existe déjà et est valide (workflow_dispatch présent)', 'success');
-                    return true; // On n'a pas besoin de le réécrire
+                    // On attend juste que GitHub l'ait indexé
+                    await waitForWorkflowIndexation(token, targetOwner, targetRepo);
+                    return true;
                 } else {
-                    logMsg('⚠️ Workflow existant mais sans workflow_dispatch, on va le mettre à jour', 'warn');
+                    logMsg('⚠️ Workflow existant mais sans workflow_dispatch, mise à jour nécessaire', 'warn');
                 }
             } else if (getRes.status !== 404) {
                 var err = await getRes.json();
                 throw new Error(err.message || 'Erreur ' + getRes.status);
             } else {
-                logMsg('📝 Aucun workflow existant', 'warn');
+                logMsg('📝 Aucun workflow existant, création', 'warn');
             }
         } catch (e) {
             if (!e.message.includes('404')) throw e;
@@ -736,7 +743,6 @@ jobs:
 
         // 2. Générer le nouveau YAML
         var yamlContent = getYamlContent(targetRepo);
-        // Vérification que le YAML contient bien workflow_dispatch
         if (!/on:\s*workflow_dispatch/.test(yamlContent)) {
             logMsg('❌ Le YAML généré ne contient pas workflow_dispatch !', 'error');
             throw new Error('YAML invalide : workflow_dispatch manquant');
@@ -770,10 +776,19 @@ jobs:
         var result = await putRes.json();
         logMsg('✅ Workflow mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
 
-        // 4. Attendre que GitHub indexe le workflow (check via API)
-        logMsg('⏳ Attente de la disponibilité du workflow...', 'warn');
-        var workflowReady = false;
-        for (var i = 0; i < 12; i++) {
+        // 4. Attendre l'indexation par GitHub
+        await waitForWorkflowIndexation(token, targetOwner, targetRepo);
+
+        return true;
+    }
+
+    // ================================================================
+    //  ATTENTE DE L'INDEXATION (vérification active via API)
+    // ================================================================
+    async function waitForWorkflowIndexation(token, targetOwner, targetRepo) {
+        logMsg('⏳ Attente de l\'indexation du workflow par GitHub...', 'warn');
+        var maxAttempts = 20; // 20 * 3s = 60s max
+        for (var i = 0; i < maxAttempts; i++) {
             await new Promise(function(r) { setTimeout(r, 3000); });
             try {
                 var listRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows', {
@@ -786,20 +801,15 @@ jobs:
                     });
                     if (found) {
                         logMsg('✅ Workflow détecté et actif sur GitHub', 'success');
-                        workflowReady = true;
-                        break;
+                        return true;
                     } else {
-                        logMsg('⏳ En attente de l\'indexation... (' + (i+1) + '/12)', 'warn');
+                        logMsg('⏳ En attente de l\'indexation... (' + (i+1) + '/' + maxAttempts + ')', 'warn');
                     }
                 }
             } catch (e) {}
         }
-
-        if (!workflowReady) {
-            logMsg('⚠️ Le workflow n\'a pas été détecté après 36s, on continue quand même (risque d\'échec)', 'warn');
-        }
-
-        return true;
+        logMsg('⚠️ Le workflow n\'a pas été détecté après ' + (maxAttempts*3) + 's, on continue quand même', 'warn');
+        return false;
     }
 
     // ================================================================
@@ -855,7 +865,7 @@ jobs:
 
             await ensureWorkflowExists(token, targetOwner, targetRepo);
 
-            // Maintenant, envoyer la commande dispatch avec retry
+            // Envoi du dispatch avec retry
             logMsg('📡 Envoi commande...', 'info');
             var dispatchRes = null;
             var maxAttempts = 3;
