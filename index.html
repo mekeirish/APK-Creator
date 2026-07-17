@@ -7,450 +7,97 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Inter',sans-serif; background:#0b0d15; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:12px; }
+        .glass-panel { background:rgba(20,24,40,0.65); backdrop-filter:blur(18px) saturate(180%); -webkit-backdrop-filter:blur(18px) saturate(180%); border:1px solid rgba(255,255,255,0.06); border-radius:2rem; padding:1.5rem 1.2rem 2.2rem; width:100%; max-width:680px; box-shadow:0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04); position:relative; margin-top:20px; }
+        .glass-input { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:1.2rem; padding:0.8rem 1rem; color:#e8edff; font-size:0.9rem; outline:none; transition:border 0.2s, background 0.2s; width:100%; }
+        .glass-input:focus { border-color:rgba(100,140,255,0.5); background:rgba(255,255,255,0.07); box-shadow:0 0 0 4px rgba(100,140,255,0.08); }
+        .glass-input::placeholder { color:rgba(255,255,255,0.25); }
+        .glass-btn { background:rgba(100,140,255,0.12); border:1px solid rgba(100,140,255,0.15); border-radius:1.4rem; padding:0.8rem 1.5rem; font-weight:600; font-size:0.9rem; color:#c8daff; cursor:pointer; transition:background 0.2s, border-color 0.2s, transform 0.1s; width:100%; text-align:center; backdrop-filter:blur(4px); }
+        .glass-btn:hover:not(:disabled) { background:rgba(100,140,255,0.22); border-color:rgba(100,140,255,0.35); color:#fff; }
+        .glass-btn:active:not(:disabled) { transform:scale(0.97); }
+        .glass-btn:disabled { opacity:0.35; cursor:not-allowed; transform:none; }
+        .glass-btn-success { background:rgba(80,220,160,0.12); border-color:rgba(80,220,160,0.2); color:#a0f0d0; }
+        .glass-btn-success:hover:not(:disabled) { background:rgba(80,220,160,0.22); border-color:rgba(80,220,160,0.35); color:#d0fff0; }
+        .badge-glass { display:inline-block; padding:0.15rem 0.8rem; border-radius:100px; font-size:0.6rem; font-weight:600; letter-spacing:0.2px; text-transform:uppercase; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.06); color:rgba(255,255,255,0.5); white-space:nowrap; }
+        .badge-glass.ok { background:rgba(80,220,160,0.12); border-color:rgba(80,220,160,0.2); color:#80e0c0; }
+        .badge-glass.err { background:rgba(255,100,100,0.12); border-color:rgba(255,100,100,0.2); color:#ff9090; }
+        .badge-glass.wait { background:rgba(255,200,80,0.12); border-color:rgba(255,200,80,0.2); color:#f0d060; }
+        .repo-badge { font-size:0.7rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.04); border-radius:100px; padding:0.1rem 0.7rem; color:rgba(255,255,255,0.35); white-space:nowrap; max-width:140px; overflow:hidden; text-overflow:ellipsis; }
+        .terminal-glass { margin-top:1.5rem; background:rgba(0,0,0,0.45); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.04); border-radius:1.4rem; overflow:hidden; }
+        .terminal-header { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; background:rgba(0,0,0,0.3); border-bottom:1px solid rgba(255,255,255,0.04); }
+        .terminal-header span { font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; color:rgba(255,255,255,0.25); }
+        .terminal-actions { display:flex; gap:0.4rem; }
+        .terminal-actions button { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:100px; padding:0.15rem 0.6rem; font-size:0.5rem; font-weight:600; color:rgba(255,255,255,0.25); cursor:pointer; transition:background 0.15s, color 0.15s; text-transform:uppercase; letter-spacing:0.3px; }
+        .terminal-actions button:hover { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.5); }
+        .terminal-body { padding:0.6rem 1rem; height:210px; overflow-y:auto; font-size:0.7rem; line-height:1.6; font-family:'JetBrains Mono','Fira Code',monospace; color:#b0c4e0; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.05) transparent; }
+        .terminal-body::-webkit-scrollbar { width:3px; }
+        .terminal-body::-webkit-scrollbar-track { background:transparent; }
+        .terminal-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:10px; }
+        .log-entry { display:flex; gap:0.5rem; align-items:baseline; padding:0.05rem 0; }
+        .log-time { color:rgba(255,255,255,0.12); font-size:0.55rem; flex-shrink:0; min-width:3.2rem; }
+        .log-msg { word-break:break-word; font-size:0.7rem; }
+        .log-msg.info { color:#b0c4e0; }
+        .log-msg.success { color:#80e0c0; }
+        .log-msg.error { color:#ff9090; }
+        .log-msg.warn { color:#f0d060; }
+        .log-msg.highlight { color:#b0c0ff; font-weight:500; }
+        .dropdown-glass { position:absolute; top:calc(100% + 4px); left:0; width:100%; max-height:160px; overflow-y:auto; background:rgba(16,20,36,0.92); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:1rem; z-index:20; display:none; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.05) transparent; }
+        .dropdown-glass::-webkit-scrollbar { width:3px; }
+        .dropdown-glass::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:10px; }
+        .dropdown-item { padding:0.4rem 1rem; cursor:pointer; color:rgba(255,255,255,0.6); font-size:0.8rem; transition:background 0.15s, color 0.15s; border-bottom:1px solid rgba(255,255,255,0.02); }
+        .dropdown-item:last-child { border-bottom:none; }
+        .dropdown-item:hover { background:rgba(255,255,255,0.04); color:#fff; }
+        .field-wrap { position:relative; margin-bottom:1rem; }
+        .field-wrap label { display:block; font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; color:rgba(255,255,255,0.2); margin-bottom:0.3rem; }
+        .status-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:0.3rem; flex-shrink:0; }
+        .status-dot.idle { background:rgba(255,255,255,0.1); }
+        .status-dot.running { background:#80b0ff; box-shadow:0 0 12px rgba(80,160,255,0.3); animation:pulse-dot 1.2s infinite; }
+        .status-dot.done { background:#80e0c0; }
+        .status-dot.fail { background:#ff9090; }
+        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.4;transform:scale(0.85);} }
+        .signature { position:absolute; bottom:0.9rem; right:1.4rem; font-size:0.45rem; font-weight:400; letter-spacing:0.4px; color:rgba(255,255,255,0.06); text-transform:uppercase; user-select:none; pointer-events:none; }
+        .header-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem; flex-wrap:wrap; gap:0.3rem; }
+        .header-top h1 { font-size:1.1rem; font-weight:700; color:rgba(255,255,255,0.8); letter-spacing:-0.3px; }
+        .header-badges { display:flex; flex-direction:column; align-items:flex-end; gap:0.2rem; flex-shrink:0; }
+        .header-badges .badge-row { display:flex; align-items:center; gap:0.4rem; }
+        .mode-toggle { display:flex; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:100px; padding:0.2rem; margin-bottom:1rem; gap:0.2rem; }
+        .mode-toggle button { flex:1; background:transparent; border:none; border-radius:100px; padding:0.4rem 1rem; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.3px; color:rgba(255,255,255,0.3); cursor:pointer; transition:background 0.2s, color 0.2s; }
+        .mode-toggle button.active { background:rgba(255,255,255,0.08); color:#c8daff; }
+        .mode-toggle button:hover:not(.active) { color:rgba(255,255,255,0.6); }
+        .code-editor { display:none; width:100%; min-height:200px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.06); border-radius:1.2rem; padding:0.8rem 1rem; color:#e8edff; font-family:'JetBrains Mono','Fira Code',monospace; font-size:0.8rem; line-height:1.6; resize:vertical; outline:none; transition:border 0.2s; }
+        .code-editor:focus { border-color:rgba(100,140,255,0.5); }
+        .code-editor::placeholder { color:rgba(255,255,255,0.2); }
+        .code-editor.visible { display:block; }
+        .sandbox-badge { display:inline-block; font-size:0.6rem; background:rgba(255,200,80,0.12); border:1px solid rgba(255,200,80,0.15); border-radius:100px; padding:0.1rem 0.8rem; color:#f0d060; }
+        @media (max-width:480px) {
+            body { padding:8px 6px 12px; align-items:flex-start; }
+            .glass-panel { padding:1rem 0.8rem 1.8rem; border-radius:1.6rem; margin-top:10px; }
+            .header-top h1 { font-size:0.95rem; }
+            .repo-badge { font-size:0.55rem; max-width:100px; padding:0.05rem 0.5rem; }
+            .badge-glass { font-size:0.5rem; padding:0.1rem 0.6rem; }
+            .status-dot { width:6px; height:6px; }
+            .glass-input { font-size:0.8rem; padding:0.6rem 0.8rem; border-radius:1rem; }
+            .field-wrap { margin-bottom:0.7rem; }
+            .field-wrap label { font-size:0.5rem; }
+            .glass-btn { font-size:0.8rem; padding:0.6rem 1rem; border-radius:1.2rem; }
+            .terminal-glass { margin-top:1rem; border-radius:1.2rem; }
+            .terminal-header { padding:0.3rem 0.7rem; }
+            .terminal-header span { font-size:0.5rem; }
+            .terminal-actions button { font-size:0.4rem; padding:0.1rem 0.4rem; }
+            .terminal-body { height:150px; padding:0.4rem 0.7rem; font-size:0.6rem; line-height:1.5; }
+            .log-time { font-size:0.45rem; min-width:2.6rem; }
+            .log-msg { font-size:0.6rem; }
+            .signature { font-size:0.4rem; bottom:0.6rem; right:1rem; }
+            .dropdown-item { font-size:0.7rem; padding:0.3rem 0.8rem; }
+            .code-editor { min-height:140px; font-size:0.7rem; padding:0.5rem 0.7rem; }
+            .mode-toggle button { font-size:0.6rem; padding:0.3rem 0.8rem; }
         }
-        body {
-            font-family: 'Inter', sans-serif;
-            background: #0b0d15;
-            min-height: 100vh;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding: 12px 12px 20px;
-        }
-        .glass-panel {
-            background: rgba(20, 24, 40, 0.65);
-            backdrop-filter: blur(18px) saturate(180%);
-            -webkit-backdrop-filter: blur(18px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 2rem;
-            padding: 1.5rem 1.2rem 2.2rem;
-            width: 100%;
-            max-width: 680px;
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-            position: relative;
-            margin-top: 20px;
-        }
-        .glass-input {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 1.2rem;
-            padding: 0.8rem 1rem;
-            color: #e8edff;
-            font-size: 0.9rem;
-            outline: none;
-            transition: border 0.2s, background 0.2s;
-            width: 100%;
-        }
-        .glass-input:focus {
-            border-color: rgba(100, 140, 255, 0.5);
-            background: rgba(255, 255, 255, 0.07);
-            box-shadow: 0 0 0 4px rgba(100, 140, 255, 0.08);
-        }
-        .glass-input::placeholder {
-            color: rgba(255, 255, 255, 0.25);
-        }
-        .glass-btn {
-            background: rgba(100, 140, 255, 0.12);
-            border: 1px solid rgba(100, 140, 255, 0.15);
-            border-radius: 1.4rem;
-            padding: 0.8rem 1.5rem;
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: #c8daff;
-            cursor: pointer;
-            transition: background 0.2s, border-color 0.2s, transform 0.1s;
-            width: 100%;
-            text-align: center;
-            backdrop-filter: blur(4px);
-        }
-        .glass-btn:hover:not(:disabled) {
-            background: rgba(100, 140, 255, 0.22);
-            border-color: rgba(100, 140, 255, 0.35);
-            color: #fff;
-        }
-        .glass-btn:active:not(:disabled) {
-            transform: scale(0.97);
-        }
-        .glass-btn:disabled {
-            opacity: 0.35;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .glass-btn-success {
-            background: rgba(80, 220, 160, 0.12);
-            border-color: rgba(80, 220, 160, 0.2);
-            color: #a0f0d0;
-        }
-        .glass-btn-success:hover:not(:disabled) {
-            background: rgba(80, 220, 160, 0.22);
-            border-color: rgba(80, 220, 160, 0.35);
-            color: #d0fff0;
-        }
-        .badge-glass {
-            display: inline-block;
-            padding: 0.15rem 0.8rem;
-            border-radius: 100px;
-            font-size: 0.6rem;
-            font-weight: 600;
-            letter-spacing: 0.2px;
-            text-transform: uppercase;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            color: rgba(255, 255, 255, 0.5);
-            white-space: nowrap;
-        }
-        .badge-glass.ok {
-            background: rgba(80, 220, 160, 0.12);
-            border-color: rgba(80, 220, 160, 0.2);
-            color: #80e0c0;
-        }
-        .badge-glass.err {
-            background: rgba(255, 100, 100, 0.12);
-            border-color: rgba(255, 100, 100, 0.2);
-            color: #ff9090;
-        }
-        .badge-glass.wait {
-            background: rgba(255, 200, 80, 0.12);
-            border-color: rgba(255, 200, 80, 0.2);
-            color: #f0d060;
-        }
-        .repo-badge {
-            font-size: 0.7rem;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            border-radius: 100px;
-            padding: 0.1rem 0.7rem;
-            color: rgba(255, 255, 255, 0.35);
-            white-space: nowrap;
-            max-width: 140px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .terminal-glass {
-            margin-top: 1.5rem;
-            background: rgba(0, 0, 0, 0.45);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            border-radius: 1.4rem;
-            overflow: hidden;
-        }
-        .terminal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 1rem;
-            background: rgba(0, 0, 0, 0.3);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-        }
-        .terminal-header span {
-            font-size: 0.6rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            color: rgba(255, 255, 255, 0.25);
-        }
-        .terminal-actions {
-            display: flex;
-            gap: 0.4rem;
-        }
-        .terminal-actions button {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 100px;
-            padding: 0.15rem 0.6rem;
-            font-size: 0.5rem;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.25);
-            cursor: pointer;
-            transition: background 0.15s, color 0.15s;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        .terminal-actions button:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 0.5);
-        }
-        .terminal-body {
-            padding: 0.6rem 1rem;
-            height: 210px;
-            overflow-y: auto;
-            font-size: 0.7rem;
-            line-height: 1.6;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            color: #b0c4e0;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(255, 255, 255, 0.05) transparent;
-        }
-        .terminal-body::-webkit-scrollbar {
-            width: 3px;
-        }
-        .terminal-body::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .terminal-body::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 10px;
-        }
-        .log-entry {
-            display: flex;
-            gap: 0.5rem;
-            align-items: baseline;
-            padding: 0.05rem 0;
-        }
-        .log-time {
-            color: rgba(255, 255, 255, 0.12);
-            font-size: 0.55rem;
-            flex-shrink: 0;
-            min-width: 3.2rem;
-        }
-        .log-msg {
-            word-break: break-word;
-            font-size: 0.7rem;
-        }
-        .log-msg.info {
-            color: #b0c4e0;
-        }
-        .log-msg.success {
-            color: #80e0c0;
-        }
-        .log-msg.error {
-            color: #ff9090;
-        }
-        .log-msg.warn {
-            color: #f0d060;
-        }
-        .log-msg.highlight {
-            color: #b0c0ff;
-            font-weight: 500;
-        }
-
-        .dropdown-glass {
-            position: absolute;
-            top: calc(100% + 4px);
-            left: 0;
-            width: 100%;
-            max-height: 160px;
-            overflow-y: auto;
-            background: rgba(16, 20, 36, 0.92);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 1rem;
-            z-index: 20;
-            display: none;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(255, 255, 255, 0.05) transparent;
-        }
-        .dropdown-glass::-webkit-scrollbar {
-            width: 3px;
-        }
-        .dropdown-glass::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 10px;
-        }
-        .dropdown-item {
-            padding: 0.4rem 1rem;
-            cursor: pointer;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 0.8rem;
-            transition: background 0.15s, color 0.15s;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
-        }
-        .dropdown-item:last-child {
-            border-bottom: none;
-        }
-        .dropdown-item:hover {
-            background: rgba(255, 255, 255, 0.04);
-            color: #fff;
-        }
-
-        .field-wrap {
-            position: relative;
-            margin-bottom: 1rem;
-        }
-        .field-wrap label {
-            display: block;
-            font-size: 0.6rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            color: rgba(255, 255, 255, 0.2);
-            margin-bottom: 0.3rem;
-        }
-
-        .status-dot {
-            display: inline-block;
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            margin-right: 0.3rem;
-            flex-shrink: 0;
-        }
-        .status-dot.idle {
-            background: rgba(255, 255, 255, 0.1);
-        }
-        .status-dot.running {
-            background: #80b0ff;
-            box-shadow: 0 0 12px rgba(80, 160, 255, 0.3);
-            animation: pulse-dot 1.2s infinite;
-        }
-        .status-dot.done {
-            background: #80e0c0;
-        }
-        .status-dot.fail {
-            background: #ff9090;
-        }
-        @keyframes pulse-dot {
-            0%,
-            100% {
-                opacity: 1;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 0.4;
-                transform: scale(0.85);
-            }
-        }
-
-        .signature {
-            position: absolute;
-            bottom: 0.9rem;
-            right: 1.4rem;
-            font-size: 0.45rem;
-            font-weight: 400;
-            letter-spacing: 0.4px;
-            color: rgba(255, 255, 255, 0.06);
-            text-transform: uppercase;
-            user-select: none;
-            pointer-events: none;
-        }
-
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.6rem;
-            flex-wrap: wrap;
-            gap: 0.3rem;
-        }
-        .header-top h1 {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: rgba(255, 255, 255, 0.8);
-            letter-spacing: -0.3px;
-        }
-        .header-badges {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 0.2rem;
-            flex-shrink: 0;
-        }
-        .header-badges .badge-row {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        @media (max-width: 480px) {
-            body {
-                padding: 8px 6px 12px;
-                align-items: flex-start;
-            }
-            .glass-panel {
-                padding: 1rem 0.8rem 1.8rem;
-                border-radius: 1.6rem;
-                margin-top: 10px;
-            }
-            .header-top h1 {
-                font-size: 0.95rem;
-            }
-            .repo-badge {
-                font-size: 0.55rem;
-                max-width: 100px;
-                padding: 0.05rem 0.5rem;
-            }
-            .badge-glass {
-                font-size: 0.5rem;
-                padding: 0.1rem 0.6rem;
-            }
-            .status-dot {
-                width: 6px;
-                height: 6px;
-            }
-            .glass-input {
-                font-size: 0.8rem;
-                padding: 0.6rem 0.8rem;
-                border-radius: 1rem;
-            }
-            .field-wrap {
-                margin-bottom: 0.7rem;
-            }
-            .field-wrap label {
-                font-size: 0.5rem;
-            }
-            .glass-btn {
-                font-size: 0.8rem;
-                padding: 0.6rem 1rem;
-                border-radius: 1.2rem;
-            }
-            .terminal-glass {
-                margin-top: 1rem;
-                border-radius: 1.2rem;
-            }
-            .terminal-header {
-                padding: 0.3rem 0.7rem;
-            }
-            .terminal-header span {
-                font-size: 0.5rem;
-            }
-            .terminal-actions button {
-                font-size: 0.4rem;
-                padding: 0.1rem 0.4rem;
-            }
-            .terminal-body {
-                height: 150px;
-                padding: 0.4rem 0.7rem;
-                font-size: 0.6rem;
-                line-height: 1.5;
-            }
-            .log-time {
-                font-size: 0.45rem;
-                min-width: 2.6rem;
-            }
-            .log-msg {
-                font-size: 0.6rem;
-            }
-            .signature {
-                font-size: 0.4rem;
-                bottom: 0.6rem;
-                right: 1rem;
-            }
-            .dropdown-item {
-                font-size: 0.7rem;
-                padding: 0.3rem 0.8rem;
-            }
-        }
-        @media (max-width: 380px) {
-            .header-top h1 {
-                font-size: 0.85rem;
-            }
-            .repo-badge {
-                max-width: 80px;
-                font-size: 0.5rem;
-            }
-            .badge-glass {
-                font-size: 0.45rem;
-                padding: 0.05rem 0.4rem;
-            }
-            .glass-btn {
-                font-size: 0.7rem;
-                padding: 0.5rem 0.8rem;
-            }
+        @media (max-width:380px) {
+            .header-top h1 { font-size:0.85rem; }
+            .repo-badge { max-width:80px; font-size:0.5rem; }
+            .badge-glass { font-size:0.45rem; padding:0.05rem 0.4rem; }
+            .glass-btn { font-size:0.7rem; padding:0.5rem 0.8rem; }
         }
     </style>
 </head>
@@ -470,17 +117,32 @@
         </div>
     </div>
 
+    <!-- Toggle Mode -->
+    <div class="mode-toggle" id="modeToggle">
+        <button class="active" data-mode="repo" onclick="setMode('repo')">📦 Projet</button>
+        <button data-mode="direct" onclick="setMode('direct')">✏️ Code direct</button>
+    </div>
+
+    <!-- Token -->
     <div class="field-wrap">
         <label>🔑 Clé API GitHub (PAT)</label>
         <input type="password" id="ghToken" class="glass-input" placeholder="ghp_..." autocomplete="off" />
     </div>
 
-    <div class="field-wrap">
+    <!-- Mode Projet -->
+    <div class="field-wrap" id="repoField">
         <label>📂 Projet cible</label>
         <input type="text" id="repoInput" class="glass-input" placeholder="Entrez un token pour charger les projets..." disabled autocomplete="off" />
         <div id="repoDropdown" class="dropdown-glass"></div>
     </div>
 
+    <!-- Mode Code Direct -->
+    <div class="field-wrap" id="directField" style="display:none;">
+        <label>📄 Code HTML <span class="sandbox-badge">📦 testapk</span></label>
+        <textarea id="codeInput" class="code-editor" placeholder="Collez ici votre code HTML monolithique..." spellcheck="false"></textarea>
+    </div>
+
+    <!-- Boutons -->
     <div class="flex flex-col gap-2 mt-1">
         <button id="buildBtn" class="glass-btn" onclick="triggerBuild()" disabled>
             🚀 Lancer la compilation
@@ -516,6 +178,8 @@
     const WORKFLOW_FILENAME = 'build-apk.yml';
     const WORKFLOW_PATH = `.github/workflows/${WORKFLOW_FILENAME}`;
     const BRIDGE_URL = 'https://raw.githubusercontent.com/mekeirish/APK-Creator/main/bridge.js';
+    const SANDBOX_OWNER = 'mekeirish';
+    const SANDBOX_REPO = 'testapk';
 
     let reposMap = new Map();
     let currentOwner = '';
@@ -524,6 +188,7 @@
     let pollingInterval = null;
     let directDownloadUrl = '#';
     let buildInProgress = false;
+    let currentMode = 'repo';
 
     // ================================================================
     //  DOM REFS
@@ -537,13 +202,50 @@
     const statusBadge = document.getElementById('statusBadge');
     const statusDot = document.getElementById('statusDot');
     const repoBadge = document.getElementById('repoBadge');
+    const codeInput = document.getElementById('codeInput');
+    const repoField = document.getElementById('repoField');
+    const directField = document.getElementById('directField');
 
     // ================================================================
-    //  YAML — AVEC ÉCHAPPEMENT CORRECT : '\${MAIN_HTML}' (UN SEUL ANTISLASH)
+    //  MODE TOGGLE
+    // ================================================================
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-toggle button').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+        if (mode === 'repo') {
+            repoField.style.display = 'block';
+            directField.style.display = 'none';
+            codeInput.style.display = 'none';
+            if (reposMap.size > 0) {
+                repoInput.disabled = false;
+                repoInput.placeholder = 'Tapez le nom du projet...';
+            } else {
+                repoInput.disabled = true;
+                repoInput.placeholder = 'Entrez un token pour charger les projets...';
+            }
+            currentRepo = '';
+            setRepoBadgeText('');
+            buildBtn.disabled = true;
+        } else {
+            repoField.style.display = 'none';
+            directField.style.display = 'block';
+            codeInput.style.display = 'block';
+            currentOwner = SANDBOX_OWNER;
+            currentRepo = SANDBOX_REPO;
+            currentBranch = 'main';
+            setRepoBadgeText('🧪 testapk (sandbox)');
+            var token = ghTokenInput.value.trim();
+            buildBtn.disabled = !(token.length > 20);
+        }
+    }
+
+    // ================================================================
+    //  YAML
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
-
         return `name: Build APK Android
 on:
   workflow_dispatch:
@@ -588,47 +290,19 @@ jobs:
           npx cap init "${repoName}" "com.brahim.${repoLower}" --web-dir www
           npx cap add android
 
-      - name: 🔌 Téléchargement et injection chirurgicale du Bridge (split + pop)
+      - name: 🔌 Téléchargement et injection chirurgicale du Bridge
         run: |
           cd capacitor-app/www
           MAIN_HTML=$(find . -maxdepth 1 -name "*.html" | head -n 1)
           if [ -z "$MAIN_HTML" ]; then
             echo "⚠️ Aucun fichier HTML trouvé"
           else
-            echo "📄 Téléchargement du Bridge..."
-            curl -s -o bridge.js "${BRIDGE_URL}" || {
-              echo "⚠️ Téléchargement échoué, création d'un bridge minimal"
-              cat > bridge.js << 'EOFBRIDGE'
-        (function(){
-          window.AppBridge = {
-            isNative: function(){ return !!(window.Capacitor && window.Capacitor.Plugins); },
-            haptics: {
-              vibrate: function(d){ if(navigator.vibrate) navigator.vibrate(d||200); }
-            },
-            storage: {
-              set: function(k,v){ localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v)); },
-              get: function(k){ return Promise.resolve(localStorage.getItem(k)); }
-            },
-            toast: function(msg,d){
-              var el=document.createElement('div');
-              el.textContent=msg;
-              el.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:12px 24px;border-radius:12px;z-index:999;';
-              document.body.appendChild(el);
-              setTimeout(function(){ el.style.opacity='0'; setTimeout(function(){ el.remove(); },300); }, d||2000);
-            }
-          };
-        })();
-        EOFBRIDGE
-            }
-            # Copie de capacitor.js si disponible
+            curl -s -o bridge.js "${BRIDGE_URL}" || echo "⚠️ Téléchargement échoué"
             if [ -f "../node_modules/@capacitor/core/dist/capacitor.js" ]; then
               cp ../node_modules/@capacitor/core/dist/capacitor.js capacitor.js
             else
-              echo "⚠️ capacitor.js introuvable"
               touch capacitor.js
             fi
-            # Injection chirurgicale : on cible le TOUT DERNIER </body> (insensible à la casse)
-            # ⚠️ CRUCIAL : const htmlFile = '\${MAIN_HTML}' (UN SEUL antislash) pour que Bash puisse interpréter ${MAIN_HTML}
             node -e "
               const fs = require('fs');
               const htmlFile = '\${MAIN_HTML}';
@@ -639,9 +313,9 @@ jobs:
                 let scripts = '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n</body>';
                 let newContent = parts.join('</body>') + scripts + lastPart;
                 fs.writeFileSync(htmlFile, newContent, 'utf8');
-                console.log('✅ Bridge injecté chirurgicalement à la toute fin (dernier </body>)');
+                console.log('✅ Bridge injecté chirurgicalement');
               } else {
-                console.log('⚠️ Aucun </body> trouvé, injection à la fin du fichier');
+                console.log('⚠️ Aucun </body> trouvé, injection à la fin');
                 fs.appendFileSync(htmlFile, '<script src=\"capacitor.js\"><\\/script>\\n<script src=\"bridge.js\"><\\/script>\\n');
               }
             "
@@ -757,6 +431,7 @@ jobs:
             ghTokenInput.value = saved;
             verifyTokenAndLoadRepos(saved);
         }
+        setMode('repo');
     });
 
     ghTokenInput.addEventListener('input', function(e) {
@@ -771,6 +446,9 @@ jobs:
             repoDropdown.style.display = 'none';
             setStatus('⏳ En attente', 'wait');
             setRepoBadgeText('');
+            if (currentMode === 'direct') {
+                buildBtn.disabled = true;
+            }
         }
     });
 
@@ -802,12 +480,16 @@ jobs:
             logMsg('✅ ' + reposMap.size + ' projets', 'success');
             setStatus('✅ ' + reposMap.size + ' repos', 'ok');
 
-            repoInput.disabled = false;
-            repoInput.placeholder = 'Tapez le nom du projet...';
-            repoInput.value = '';
-            repoDropdown.style.display = 'none';
-            buildBtn.disabled = true;
-            setRepoBadgeText('');
+            if (currentMode === 'repo') {
+                repoInput.disabled = false;
+                repoInput.placeholder = 'Tapez le nom du projet...';
+                repoInput.value = '';
+                repoDropdown.style.display = 'none';
+                buildBtn.disabled = true;
+                setRepoBadgeText('');
+            } else {
+                buildBtn.disabled = false;
+            }
 
         } catch (err) {
             logMsg('❌ ' + err.message, 'error');
@@ -815,6 +497,9 @@ jobs:
             repoInput.disabled = true;
             repoInput.placeholder = 'Token invalide';
             buildBtn.disabled = true;
+            if (currentMode === 'direct') {
+                buildBtn.disabled = true;
+            }
         }
     }
 
@@ -822,12 +507,14 @@ jobs:
     //  DROPDOWN
     // ================================================================
     repoInput.addEventListener('focus', function() {
-        if (reposMap.size > 0) showDropdown(repoInput.value);
+        if (reposMap.size > 0 && currentMode === 'repo') showDropdown(repoInput.value);
     });
 
     repoInput.addEventListener('input', function(e) {
-        showDropdown(e.target.value);
-        checkSelection();
+        if (currentMode === 'repo') {
+            showDropdown(e.target.value);
+            checkSelection();
+        }
     });
 
     document.addEventListener('click', function(e) {
@@ -860,6 +547,7 @@ jobs:
     }
 
     function checkSelection() {
+        if (currentMode !== 'repo') return;
         var val = repoInput.value.trim().toLowerCase();
         if (reposMap.has(val)) {
             var repo = reposMap.get(val);
@@ -876,19 +564,13 @@ jobs:
     }
 
     // ================================================================
-    //  CRÉATION / MISE À JOUR DU WORKFLOW
+    //  MISE À JOUR DU SANDBOX
     // ================================================================
-    function utf8_to_b64(str) {
-        return btoa(unescape(encodeURIComponent(str)));
-    }
-
-    async function ensureWorkflowExists(token) {
-        logMsg('📄 Vérification workflow...', 'info');
-
-        var sha = null;
-
+    async function pushCodeToSandbox(token, code) {
+        logMsg('📤 Envoi du code vers le sandbox...', 'info');
         try {
-            var getRes = await fetch('https://api.github.com/repos/' + currentOwner + '/' + currentRepo + '/contents/' + WORKFLOW_PATH, {
+            var sha = null;
+            var getRes = await fetch('https://api.github.com/repos/' + SANDBOX_OWNER + '/' + SANDBOX_REPO + '/contents/index.html', {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
             if (getRes.ok) {
@@ -901,19 +583,113 @@ jobs:
             } else {
                 logMsg('📝 Nouveau fichier', 'warn');
             }
+
+            var encoded = btoa(unescape(encodeURIComponent(code)));
+            var body = {
+                message: 'feat: mise à jour depuis APK Creator (code direct)',
+                content: encoded,
+                branch: currentBranch
+            };
+            if (sha) body.sha = sha;
+
+            var putRes = await fetch('https://api.github.com/repos/' + SANDBOX_OWNER + '/' + SANDBOX_REPO + '/contents/index.html', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (!putRes.ok) {
+                var errData = await putRes.json();
+                throw new Error(errData.message || 'Erreur ' + putRes.status);
+            }
+
+            var result = await putRes.json();
+            var newSha = result.content.sha;
+            logMsg('✅ index.html mis à jour (SHA: ' + newSha.slice(0,7) + ')', 'success');
+            return true;
+        } catch (err) {
+            logMsg('❌ Échec de l\'envoi du code : ' + err.message, 'error');
+            throw err;
+        }
+    }
+
+    // ================================================================
+    //  ENCODAGE BASE64 ROBUSTE
+    // ================================================================
+    function utf8_to_b64(str) {
+        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+            return String.fromCharCode(parseInt(p1, 16));
+        }));
+    }
+
+    function b64_to_utf8(str) {
+        try {
+            return decodeURIComponent(atob(str).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+        } catch(e) {
+            return atob(str);
+        }
+    }
+
+    // ================================================================
+    //  CRÉATION / VÉRIFICATION DU WORKFLOW (méthode qui marche)
+    // ================================================================
+    async function ensureWorkflowExists(token, targetOwner, targetRepo) {
+        logMsg('📄 Vérification workflow sur ' + targetRepo + '...', 'info');
+
+        var sha = null;
+        var existingContent = null;
+
+        // 1. Lire le fichier s'il existe
+        try {
+            var getRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (getRes.ok) {
+                var data = await getRes.json();
+                sha = data.sha;
+                existingContent = b64_to_utf8(data.content);
+                logMsg('🔁 Fichier existant (SHA: ' + sha.slice(0,7) + ')', 'warn');
+                // Vérifier si le contenu est déjà valide
+                if (/on:\s*workflow_dispatch/.test(existingContent)) {
+                    logMsg('✅ Workflow déjà valide', 'success');
+                    return true;
+                } else {
+                    logMsg('⚠️ Workflow existant mais sans workflow_dispatch, mise à jour', 'warn');
+                }
+            } else if (getRes.status !== 404) {
+                var err = await getRes.json();
+                throw new Error(err.message || 'Erreur ' + getRes.status);
+            } else {
+                logMsg('📝 Aucun workflow existant', 'warn');
+            }
         } catch (e) {
             if (!e.message.includes('404')) throw e;
         }
 
-        var yamlContent = getYamlContent(currentRepo);
+        // 2. Générer le YAML
+        var yamlContent = getYamlContent(targetRepo);
+        if (!/on:\s*workflow_dispatch/.test(yamlContent)) {
+            throw new Error('YAML invalide : workflow_dispatch manquant');
+        }
+
+        var yamlPreview = yamlContent.substring(0, 200);
+        logMsg('📄 Début du YAML : ' + yamlPreview + '...', 'info');
+
+        // 3. Écrire le fichier
+        var encoded = utf8_to_b64(yamlContent);
         var body = {
-            message: 'feat: correction finale échappement simple antislash',
-            content: utf8_to_b64(yamlContent),
+            message: 'feat: workflow APK Creator',
+            content: encoded,
             branch: currentBranch
         };
         if (sha) body.sha = sha;
 
-        var putRes = await fetch('https://api.github.com/repos/' + currentOwner + '/' + currentRepo + '/contents/' + WORKFLOW_PATH, {
+        var putRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/contents/' + WORKFLOW_PATH, {
             method: 'PUT',
             headers: {
                 'Authorization': 'Bearer ' + token,
@@ -929,8 +705,29 @@ jobs:
 
         var result = await putRes.json();
         logMsg('✅ Workflow mis à jour (SHA: ' + result.content.sha.slice(0,7) + ')', 'success');
-        logMsg('⏳ Pause 5s...', 'warn');
-        await new Promise(function(r) { setTimeout(r, 5000); });
+
+        // 4. Attendre l'indexation (10 secondes)
+        logMsg('⏳ Attente 10s pour indexation...', 'warn');
+        await new Promise(function(r) { setTimeout(r, 10000); });
+
+        // 5. Vérifier que le workflow est listé (optionnel)
+        try {
+            var checkRes = await fetch('https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (checkRes.ok) {
+                var checkData = await checkRes.json();
+                var found = checkData.workflows.some(function(wf) {
+                    return wf.path === WORKFLOW_PATH && wf.state === 'active';
+                });
+                if (found) {
+                    logMsg('✅ Workflow détecté comme actif', 'success');
+                } else {
+                    logMsg('⚠️ Workflow non détecté, on continue quand même', 'warn');
+                }
+            }
+        } catch(e) {}
+
         return true;
     }
 
@@ -952,32 +749,75 @@ jobs:
         directDownloadUrl = '#';
 
         logMsg('═══════════════════', 'highlight');
-        logMsg('🚀 Build : ' + currentRepo, 'highlight');
-        setStatus('⚙️ Démarrage...', 'running');
 
         try {
-            await ensureWorkflowExists(token);
+            var targetOwner, targetRepo;
 
-            logMsg('📡 Envoi commande...', 'info');
-
-            var dispatchRes = await fetch(
-                'https://api.github.com/repos/' + currentOwner + '/' + currentRepo + '/actions/workflows/' + WORKFLOW_FILENAME + '/dispatches',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': 'Bearer ' + token,
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ ref: currentBranch })
+            if (currentMode === 'direct') {
+                var code = codeInput.value.trim();
+                if (!code) {
+                    logMsg('❌ Aucun code HTML à compiler', 'error');
+                    buildBtn.disabled = false;
+                    buildInProgress = false;
+                    return;
                 }
-            );
+                if (!/<html|<!DOCTYPE/i.test(code)) {
+                    logMsg('⚠️ Le code ne semble pas être du HTML valide', 'warn');
+                }
+                await pushCodeToSandbox(token, code);
+                targetOwner = SANDBOX_OWNER;
+                targetRepo = SANDBOX_REPO;
+                logMsg('🚀 Build sandbox : ' + targetRepo, 'highlight');
+            } else {
+                if (!currentRepo) {
+                    logMsg('❌ Aucun projet sélectionné', 'error');
+                    buildBtn.disabled = false;
+                    buildInProgress = false;
+                    return;
+                }
+                targetOwner = currentOwner;
+                targetRepo = currentRepo;
+                logMsg('🚀 Build : ' + targetRepo, 'highlight');
+            }
+
+            setStatus('⚙️ Démarrage...', 'running');
+
+            await ensureWorkflowExists(token, targetOwner, targetRepo);
+
+            // Envoi du dispatch avec retry
+            logMsg('📡 Envoi commande...', 'info');
+            var dispatchRes = null;
+            for (var attempt = 0; attempt < 5; attempt++) {
+                dispatchRes = await fetch(
+                    'https://api.github.com/repos/' + targetOwner + '/' + targetRepo + '/actions/workflows/' + WORKFLOW_FILENAME + '/dispatches',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + token,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ ref: currentBranch })
+                    }
+                );
+
+                if (dispatchRes.status === 204) {
+                    break;
+                }
+
+                if (attempt < 4) {
+                    logMsg('⏳ Retentative (' + (attempt + 1) + '/5)...', 'warn');
+                    await new Promise(function(r) { setTimeout(r, 3000); });
+                }
+            }
 
             if (dispatchRes.status === 204) {
                 logMsg('✅ Commande envoyée', 'success');
                 setStatus('⏳ Compilation...', 'running');
                 logMsg('🔍 Recherche run...', 'info');
-                setTimeout(function() { startPolling(token); }, 3000);
+                var pollOwner = targetOwner;
+                var pollRepo = targetRepo;
+                setTimeout(function() { startPolling(token, pollOwner, pollRepo); }, 3000);
             } else {
                 var err = await dispatchRes.json().catch(function() { return {}; });
                 throw new Error(err.message || 'Erreur ' + dispatchRes.status);
@@ -994,7 +834,7 @@ jobs:
     // ================================================================
     //  POLLING
     // ================================================================
-    function startPolling(token) {
+    function startPolling(token, pollOwner, pollRepo) {
         if (pollingInterval) clearInterval(pollingInterval);
         var attempts = 0;
         var maxAttempts = 90;
@@ -1012,7 +852,7 @@ jobs:
 
             try {
                 var res = await fetch(
-                    'https://api.github.com/repos/' + currentOwner + '/' + currentRepo + '/actions/runs?event=workflow_dispatch&per_page=1',
+                    'https://api.github.com/repos/' + pollOwner + '/' + pollRepo + '/actions/runs?event=workflow_dispatch&per_page=1',
                     { headers: { 'Authorization': 'Bearer ' + token } }
                 );
                 if (!res.ok) return;
@@ -1041,7 +881,7 @@ jobs:
                         logMsg('✅🎉 Succès !', 'success');
                         setStatus('✅ Succès', 'ok');
 
-                        var url = 'https://github.com/' + currentOwner + '/' + currentRepo + '/releases/download/latest/' + currentRepo + '-debug.apk';
+                        var url = 'https://github.com/' + pollOwner + '/' + pollRepo + '/releases/download/latest/' + pollRepo + '-debug.apk';
                         directDownloadUrl = url;
                         downloadBtn.style.display = 'block';
                         logMsg('🔗 APK prêt', 'success');
@@ -1080,15 +920,23 @@ jobs:
         logMsg('🔄 Réinitialisé', 'warn');
     };
 
+    // Raccourcis clavier
     repoInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !buildBtn.disabled) triggerBuild();
+        if (e.key === 'Enter' && !buildBtn.disabled && currentMode === 'repo') triggerBuild();
     });
     ghTokenInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') verifyTokenAndLoadRepos(ghTokenInput.value.trim());
     });
+    codeInput.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            if (!buildBtn.disabled) triggerBuild();
+        }
+    });
 
     logMsg('📌 Token sauvegardé', 'info');
     logMsg('🪟 Glass · Dark', 'info');
+    logMsg('💡 Mode Code Direct : Ctrl+Enter pour lancer', 'info');
 </script>
 
 </body>
