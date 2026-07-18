@@ -672,21 +672,41 @@ jobs:
               echo "✅ Shim vibration ajouté"
             fi
             if [ "$NEED_NOTIFICATION" = "true" ]; then
-              # NOTIFEOF corrigé : ID int valide (<= 2147483647) + console.error
+              # NOTIFEOF corrigé : canal Android + vérification schedule()
               cat >> shims.js << 'NOTIFEOF'
           (function() {
             var Capacitor = window.Capacitor;
             if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications) {
+              // Création du canal de notification Android (nécessaire depuis Android 8 / API 26)
+              Capacitor.Plugins.LocalNotifications.createChannel({
+                id: 'default',
+                name: 'Notifications',
+                description: 'Canal de notification par défaut',
+                importance: 5,
+                visibility: 1
+              }).then(function() {
+                console.log('🔌 Canal de notification créé');
+              }).catch(function(e) {
+                console.error('Erreur création canal:', e);
+              });
+
               window.Notification = function(title, options) {
                 options = options || {};
                 var id = Math.floor(Math.random() * 2147483647);
-                try {
-                  Capacitor.Plugins.LocalNotifications.schedule({
-                    notifications: [{ id: id, title: title || '', body: options.body || '', schedule: { at: new Date() } }]
-                  });
-                } catch (e) {
-                  console.error('Échec de la notification native:', e);
-                }
+                var payload = {
+                  id: id,
+                  title: title || '',
+                  body: options.body || '',
+                  channelId: 'default',
+                  schedule: { at: new Date() }
+                };
+                Capacitor.Plugins.LocalNotifications.schedule({
+                  notifications: [payload]
+                }).then(function(result) {
+                  console.log('✅ schedule() résultat:', JSON.stringify(result));
+                }).catch(function(e) {
+                  console.error('❌ Échec schedule():', JSON.stringify(e));
+                });
                 return { title: title, body: options.body, close: function() {} };
               };
               window.Notification.requestPermission = function() {
