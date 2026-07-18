@@ -672,18 +672,21 @@ jobs:
               echo "✅ Shim vibration ajouté"
             fi
             if [ "$NEED_NOTIFICATION" = "true" ]; then
+              # NOTIFEOF corrigé : ID int valide (<= 2147483647) + console.error
               cat >> shims.js << 'NOTIFEOF'
           (function() {
             var Capacitor = window.Capacitor;
             if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications) {
               window.Notification = function(title, options) {
                 options = options || {};
-                var id = Date.now() + Math.floor(Math.random() * 1000);
+                var id = Math.floor(Math.random() * 2147483647);
                 try {
                   Capacitor.Plugins.LocalNotifications.schedule({
                     notifications: [{ id: id, title: title || '', body: options.body || '', schedule: { at: new Date() } }]
                   });
-                } catch (e) {}
+                } catch (e) {
+                  console.error('Échec de la notification native:', e);
+                }
                 return { title: title, body: options.body, close: function() {} };
               };
               window.Notification.requestPermission = function() {
@@ -718,23 +721,6 @@ jobs:
               touch capacitor.js
               echo "⚠️ capacitor.js introuvable"
             fi
-            # Copie des plugins JS
-            if [ -f "../node_modules/@capacitor/haptics/dist/plugin.cjs.js" ]; then
-              cp ../node_modules/@capacitor/haptics/dist/plugin.cjs.js haptics-plugin.js
-            elif [ -f "../node_modules/@capacitor/haptics/dist/plugin.js" ]; then
-              cp ../node_modules/@capacitor/haptics/dist/plugin.js haptics-plugin.js
-            else
-              touch haptics-plugin.js
-              echo "⚠️ JS du plugin Haptics introuvable"
-            fi
-            if [ -f "../node_modules/@capacitor/local-notifications/dist/plugin.cjs.js" ]; then
-              cp ../node_modules/@capacitor/local-notifications/dist/plugin.cjs.js localnotifications-plugin.js
-            elif [ -f "../node_modules/@capacitor/local-notifications/dist/plugin.js" ]; then
-              cp ../node_modules/@capacitor/local-notifications/dist/plugin.js localnotifications-plugin.js
-            else
-              touch localnotifications-plugin.js
-              echo "⚠️ JS du plugin LocalNotifications introuvable"
-            fi
             node -e "
               const fs = require('fs');
               const htmlFile = '\${MAIN_HTML}';
@@ -743,8 +729,6 @@ jobs:
               if (parts.length > 1) {
                 let lastPart = parts.pop();
                 let scripts = '<script src=\"capacitor.js\"><\\/script>\\n';
-                scripts += '<script src=\"haptics-plugin.js\"><\\/script>\\n';
-                scripts += '<script src=\"localnotifications-plugin.js\"><\\/script>\\n';
                 if (fs.existsSync('shims.js')) {
                   scripts += '<script src=\"shims.js\"><\\/script>\\n';
                 }
@@ -758,8 +742,6 @@ jobs:
               } else {
                 console.log('⚠️ Aucun </body> trouvé, injection à la fin');
                 let append = '<script src=\"capacitor.js\"><\\/script>\\n';
-                append += '<script src=\"haptics-plugin.js\"><\\/script>\\n';
-                append += '<script src=\"localnotifications-plugin.js\"><\\/script>\\n';
                 if (fs.existsSync('shims.js')) {
                   append += '<script src=\"shims.js\"><\\/script>\\n';
                 }
