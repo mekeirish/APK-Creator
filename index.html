@@ -672,7 +672,7 @@ jobs:
               echo "✅ Shim vibration ajouté"
             fi
             if [ "$NEED_NOTIFICATION" = "true" ]; then
-              # NOTIFEOF corrigé : canal Android + vérification schedule()
+              # NOTIFEOF corrigé : canal Android + vérification schedule() + 1s de marge
               cat >> shims.js << 'NOTIFEOF'
           (function() {
             var Capacitor = window.Capacitor;
@@ -698,7 +698,7 @@ jobs:
                   title: title || '',
                   body: options.body || '',
                   channelId: 'default',
-                  schedule: { at: new Date() }
+                  schedule: { at: new Date(Date.now() + 1000) } // 1s dans le futur pour éviter la latence du pont
                 };
                 Capacitor.Plugins.LocalNotifications.schedule({
                   notifications: [payload]
