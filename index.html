@@ -676,7 +676,7 @@
     }
 
     // ================================================================
-    //  YAML — avec détection automatique des permissions (regex corrigée)
+    //  YAML — avec détection automatique des permissions (correction des doubles backslashes)
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -733,7 +733,7 @@ jobs:
           add_permission() {
             local perm="$1"
             if ! grep -q "android.permission.$perm" "$MANIFEST"; then
-              sed -i "/<manifest/a\    <uses-permission android:name=\"android.permission.$perm\" />" "$MANIFEST"
+              sed -i "/<manifest/a\\    <uses-permission android:name=\\"android.permission.$perm\\" />" "$MANIFEST"
               echo "✅ Permission $perm ajoutée"
             else
               echo "✅ Permission $perm déjà présente"
@@ -744,15 +744,15 @@ jobs:
           add_permission "INTERNET"
           add_permission "ACCESS_NETWORK_STATE"
           
-          # 2. Détection des API utilisées (regex avec caractères spéciaux échappés)
+          # 2. Détection des API utilisées
           # Vibration
-          if grep -rq -E "navigator\.vibrate|\.vibrate\(" .; then
+          if grep -rq -E "navigator\\.vibrate|\\.vibrate\\(" .; then
             add_permission "VIBRATE"
             echo "   (détecté: navigator.vibrate ou .vibrate() dans le code)"
           fi
           
           # Géolocalisation
-          if grep -rq -E "navigator\.geolocation|getCurrentPosition|watchPosition" .; then
+          if grep -rq -E "navigator\\.geolocation|getCurrentPosition|watchPosition" .; then
             add_permission "ACCESS_FINE_LOCATION"
             add_permission "ACCESS_COARSE_LOCATION"
             echo "   (détecté: API de géolocalisation utilisée)"
@@ -771,7 +771,7 @@ jobs:
           fi
           
           # Notifications
-          if grep -rq -E "new Notification\(|Notification\.requestPermission" .; then
+          if grep -rq -E "new Notification\\(|Notification\\.requestPermission" .; then
             add_permission "POST_NOTIFICATIONS"
             echo "   (détecté: Notification API utilisée)"
           fi
