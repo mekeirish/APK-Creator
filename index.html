@@ -397,7 +397,7 @@
     let currentPollOwner = null;
     let currentPollRepo = null;
     let currentPollDispatchDate = null;
-    let currentPollTolerance = 5000;
+    let currentPollTolerance = 10000; // augmenté à 10s pour plus de robustesse
     let currentPollAttempts = 0;
     let currentPollMaxAttempts = 90;
     let pollInFlight = false; // Verrou anti-concurrence
@@ -676,7 +676,7 @@
     }
 
     // ================================================================
-    //  YAML — avec détection automatique des permissions
+    //  YAML — avec détection automatique des permissions (regex corrigée)
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -744,7 +744,7 @@ jobs:
           add_permission "INTERNET"
           add_permission "ACCESS_NETWORK_STATE"
           
-          # 2. Détection des API utilisées
+          # 2. Détection des API utilisées (regex avec caractères spéciaux échappés)
           # Vibration
           if grep -rq -E "navigator\.vibrate|\.vibrate\(" .; then
             add_permission "VIBRATE"
@@ -1103,8 +1103,9 @@ jobs:
             }
 
             try {
+                // Récupérer 10 runs pour être sûr de trouver le bon
                 var res = await fetch(
-                    'https://api.github.com/repos/' + currentPollOwner + '/' + currentPollRepo + '/actions/runs?event=workflow_dispatch&per_page=5',
+                    'https://api.github.com/repos/' + currentPollOwner + '/' + currentPollRepo + '/actions/runs?event=workflow_dispatch&per_page=10',
                     { headers: { 'Authorization': 'Bearer ' + currentPollToken } }
                 );
                 if (!res.ok) return;
@@ -1115,10 +1116,19 @@ jobs:
                     return;
                 }
 
+                // Filtrer avec une tolérance de 10s
                 var filteredRuns = data.workflow_runs.filter(function(run) {
                     var runDate = new Date(run.created_at);
                     return runDate.getTime() >= currentPollDispatchDate.getTime() - currentPollTolerance;
                 });
+
+                // Si aucun run filtré, prendre le plus récent (fallback)
+                if (filteredRuns.length === 0 && data.workflow_runs.length > 0) {
+                    var latest = new Date(data.workflow_runs[0].created_at);
+                    var dispatch = currentPollDispatchDate;
+                    logMsg('⚠️ Aucun run récent trouvé (dernier run: ' + latest.toISOString() + ', dispatch: ' + dispatch.toISOString() + ')', 'warn');
+                    filteredRuns = [data.workflow_runs[0]];
+                }
 
                 if (filteredRuns.length === 0) {
                     logMsg('⏳ File d\'attente...', 'warn');
@@ -1208,7 +1218,7 @@ jobs:
         currentPollOwner = pollOwner;
         currentPollRepo = pollRepo;
         currentPollDispatchDate = new Date(dispatchTimestamp);
-        currentPollTolerance = 5000;
+        currentPollTolerance = 10000; // 10 secondes
         currentPollAttempts = 0;
         currentPollMaxAttempts = 90;
 
