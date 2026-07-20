@@ -535,7 +535,7 @@
     }
 
     // ================================================================
-    //  YAML — avec détection des permissions ET shims (correction indentation)
+    //  YAML — avec détection des permissions ET shims (version CALL_PHONE intégrée)
     // ================================================================
     function getYamlContent(repoName) {
         const repoLower = repoName.toLowerCase();
@@ -603,6 +603,12 @@ jobs:
           add_permission "INTERNET"
           add_permission "ACCESS_NETWORK_STATE"
           
+          if grep -rq -E "passerAppelDirect" .; then
+            add_permission "CALL_PHONE"
+            touch .need_call_shim
+            echo "   (détecté: Appel direct demandé via AndroidBridge)"
+          fi
+          
           if grep -rq -E "navigator\\.vibrate|\\.vibrate\\(" .; then
             add_permission "VIBRATE"
             touch .need_vibrate_shim
@@ -635,6 +641,110 @@ jobs:
           fi
           
           echo "🔐 Analyse des permissions terminée"
+
+      - name: 📱 Configuration du pont d'appel natif direct (MainActivity)
+        run: |
+          if [ -f capacitor-app/www/.need_call_shim ]; then
+            cd capacitor-app
+            MAIN_ACTIVITY="android/app/src/main/java/com/brahim/${repoLower}/MainActivity.java"
+            cat > $MAIN_ACTIVITY << 'EOF'
+          package com.brahim.${repoLower};
+
+          import android.Manifest;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.util.Log;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              private static final int REQUEST_CALL_PHONE = 1234;
+              private static final String TAG = "MainActivity";
+
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  // 1. Injection immédiate de l'interface JavaScript
+                  WebView webView = this.bridge.getWebView();
+                  webView.addJavascriptInterface(new Object() {
+                      @android.webkit.JavascriptInterface
+                      public void passerAppelDirect(String phone) {
+                          // Vérifier la permission à l'exécution
+                          if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CALL_PHONE)
+                                  != PackageManager.PERMISSION_GRANTED) {
+                              Log.w(TAG, "CALL_PHONE permission non accordée, demande en cours...");
+                              ActivityCompat.requestPermissions(MainActivity.this,
+                                      new String[]{Manifest.permission.CALL_PHONE},
+                                      REQUEST_CALL_PHONE);
+                              return; // La fonction sera réappelée après l'octroi
+                          }
+                          try {
+                              Intent intent = new Intent(Intent.ACTION_CALL);
+                              intent.setData(Uri.parse("tel:" + phone));
+                              startActivity(intent);
+                          } catch (Exception e) {
+                              Log.e(TAG, "Échec de l'appel", e);
+                          }
+                      }
+                  }, "AndroidBridge");
+
+                  // 2. WebViewClient pour garantir que l'interface est attachée avant l'exécution du JS
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                          super.onPageStarted(view, url, favicon);
+                          // Réinjection au cas où le timing précédent aurait échoué
+                          view.addJavascriptInterface(new Object() {
+                              @android.webkit.JavascriptInterface
+                              public void passerAppelDirect(String phone) {
+                                  if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CALL_PHONE)
+                                          != PackageManager.PERMISSION_GRANTED) {
+                                      Log.w(TAG, "CALL_PHONE permission non accordée, demande en cours...");
+                                      ActivityCompat.requestPermissions(MainActivity.this,
+                                              new String[]{Manifest.permission.CALL_PHONE},
+                                              REQUEST_CALL_PHONE);
+                                      return;
+                                  }
+                                  try {
+                                      Intent intent = new Intent(Intent.ACTION_CALL);
+                                      intent.setData(Uri.parse("tel:" + phone));
+                                      startActivity(intent);
+                                  } catch (Exception e) {
+                                      Log.e(TAG, "Échec de l'appel", e);
+                                  }
+                              }
+                          }, "AndroidBridge");
+                          // Supprimer le client pour ne pas le réexécuter sur les pages suivantes
+                          view.setWebViewClient(null);
+                      }
+                  });
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == REQUEST_CALL_PHONE) {
+                      if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                          Log.i(TAG, "Permission CALL_PHONE accordée");
+                      } else {
+                          Log.w(TAG, "Permission CALL_PHONE refusée");
+                      }
+                  }
+              }
+          }
+          EOF
+            echo "✅ MainActivity.java modifiée avec succès (timing + permission runtime)"
+          else
+            echo "ℹ️ Pas besoin de modifier MainActivity.java (aucun appel direct détecté)"
+          fi
 
       - name: 🌉 Injection des shims JS-vers-natif
         run: |
@@ -672,12 +782,10 @@ jobs:
               echo "✅ Shim vibration ajouté"
             fi
             if [ "$NEED_NOTIFICATION" = "true" ]; then
-              # NOTIFEOF corrigé : canal Android + vérification schedule() + 1s de marge
               cat >> shims.js << 'NOTIFEOF'
           (function() {
             var Capacitor = window.Capacitor;
             if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications) {
-              // Création du canal de notification Android (nécessaire depuis Android 8 / API 26)
               Capacitor.Plugins.LocalNotifications.createChannel({
                 id: 'default',
                 name: 'Notifications',
@@ -698,7 +806,7 @@ jobs:
                   title: title || '',
                   body: options.body || '',
                   channelId: 'default',
-                  schedule: { at: new Date(Date.now() + 1000) } // 1s dans le futur pour éviter la latence du pont
+                  schedule: { at: new Date(Date.now() + 1000) }
                 };
                 Capacitor.Plugins.LocalNotifications.schedule({
                   notifications: [payload]
